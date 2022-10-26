@@ -4,9 +4,16 @@ use chumsky::prelude::*;
 
 fn expr() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> {
     recursive(|expr| {
+        let boolean = just("true")
+            .to(true)
+            .or(just("false").to(false))
+            .map(Expr::Bool);
+
         let number = text::int(10).from_str().unwrapped().map(Expr::Num);
 
-        let primary = number.or(expr.delimited_by(just('('), just(')')));
+        let primary = boolean
+            .or(number)
+            .or(expr.delimited_by(just('('), just(')')));
 
         let op = |c| just(c).delimited_by(just(' '), just(' '));
 
@@ -63,6 +70,9 @@ mod test {
         assert_err!("1a");
         assert_err!("01");
 
+        assert_ok!("true", Expr::Bool(true));
+        assert_ok!("false", Expr::Bool(false));
+
         assert_ok!("1", Expr::Num(1.0));
         assert_ok!("10", Expr::Num(10.0));
 
@@ -79,6 +89,8 @@ mod test {
         );
 
         assert_err!("()");
+
+        assert_ok!("(true)", Expr::Bool(true));
         assert_ok!("(1)", Expr::Num(1.0));
 
         assert_ok!(
