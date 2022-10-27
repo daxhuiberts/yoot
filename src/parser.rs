@@ -28,13 +28,23 @@ fn expr() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> {
             )
             .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)));
 
-        factor
+        let term = factor
             .clone()
             .then(
                 op("+")
                     .to(Expr::Add as fn(_, _) -> _)
                     .or(op("-").to(Expr::Sub as fn(_, _) -> _))
                     .then(factor)
+                    .repeated(),
+            )
+            .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)));
+
+        term.clone()
+            .then(
+                op("==")
+                    .to(Expr::Eq as fn(_, _) -> _)
+                    .or(op("!=").to(Expr::Neq as fn(_, _) -> _))
+                    .then(term)
                     .repeated(),
             )
             .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)))
@@ -118,6 +128,20 @@ mod test {
                     Box::new(Expr::Num(3.0)),
                     Box::new(Expr::Num(4.0)),
                 )),
+            )
+        );
+
+        assert_ok!(
+            "(1 + 2 == 3) == true",
+            Expr::Eq(
+                Box::new(Expr::Eq(
+                    Box::new(Expr::Add(
+                        Box::new(Expr::Num(1.0)),
+                        Box::new(Expr::Num(2.0)),
+                    )),
+                    Box::new(Expr::Num(3.0)),
+                )),
+                Box::new(Expr::Bool(true)),
             )
         );
     }

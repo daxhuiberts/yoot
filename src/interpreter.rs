@@ -56,6 +56,30 @@ pub fn eval(expr: &Expr) -> Result<Value> {
                 )),
             }
         }
+
+        Expr::Eq(left, right) => {
+            let left_val = eval(left)?;
+            let right_val = eval(right)?;
+            match (&left_val, &right_val) {
+                (Value::Bool(left), Value::Bool(right)) => Ok(Value::Bool(left == right)),
+                (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left == right)),
+                _ => Err(format!(
+                    "expect same type on both sides: {left_val:?} == {right_val:?}"
+                )),
+            }
+        }
+
+        Expr::Neq(left, right) => {
+            let left_val = eval(left)?;
+            let right_val = eval(right)?;
+            match (&left_val, &right_val) {
+                (Value::Bool(left), Value::Bool(right)) => Ok(Value::Bool(left != right)),
+                (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left != right)),
+                _ => Err(format!(
+                    "expect same type on both sides: {left_val:?} != {right_val:?}"
+                )),
+            }
+        }
     }
 }
 
@@ -100,5 +124,19 @@ mod test {
             )),
             Ok(Value::Num(-3.0))
         );
+
+        assert_eq!(
+            eval(&Expr::Eq(
+                Box::new(Expr::Eq(
+                    Box::new(Expr::Add(
+                        Box::new(Expr::Num(1.0)),
+                        Box::new(Expr::Num(2.0)),
+                    )),
+                    Box::new(Expr::Num(3.0)),
+                )),
+                Box::new(Expr::Bool(true)),
+            )),
+            Ok(Value::Bool(true))
+        )
     }
 }
