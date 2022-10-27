@@ -80,6 +80,94 @@ pub fn eval(expr: &Expr) -> Result<Value> {
                 )),
             }
         }
+
+        Expr::Lt(left, right) => {
+            let left_val = eval(left)?;
+            let right_val = eval(right)?;
+            match (&left_val, &right_val) {
+                (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left < right)),
+                _ => Err(format!(
+                    "expect num on both sides: {left_val:?} < {right_val:?}"
+                )),
+            }
+        }
+
+        Expr::Lte(left, right) => {
+            let left_val = eval(left)?;
+            let right_val = eval(right)?;
+            match (&left_val, &right_val) {
+                (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left <= right)),
+                _ => Err(format!(
+                    "expect num on both sides: {left_val:?} <= {right_val:?}"
+                )),
+            }
+        }
+
+        Expr::Gt(left, right) => {
+            let left_val = eval(left)?;
+            let right_val = eval(right)?;
+            match (&left_val, &right_val) {
+                (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left > right)),
+                _ => Err(format!(
+                    "expect num on both sides: {left_val:?} > {right_val:?}"
+                )),
+            }
+        }
+
+        Expr::Gte(left, right) => {
+            let left_val = eval(left)?;
+            let right_val = eval(right)?;
+            match (&left_val, &right_val) {
+                (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left >= right)),
+                _ => Err(format!(
+                    "expect num on both sides: {left_val:?} >= {right_val:?}"
+                )),
+            }
+        }
+
+        Expr::And(left, right) => {
+            let left_val = eval(left)?;
+            if let Value::Bool(left_val) = left_val {
+                if left_val {
+                    let right_val = eval(right)?;
+                    if let Value::Bool(right_val) = right_val {
+                        Ok(Value::Bool(right_val))
+                    } else {
+                        Err(format!(
+                            "expect bool on right side with && operator: {right_val:?}"
+                        ))
+                    }
+                } else {
+                    Ok(Value::Bool(false))
+                }
+            } else {
+                Err(format!(
+                    "expect bool on left side with && operator: {left_val:?}"
+                ))
+            }
+        }
+
+        Expr::Or(left, right) => {
+            let left_val = eval(left)?;
+            if let Value::Bool(left_val) = left_val {
+                if left_val {
+                    Ok(Value::Bool(true))
+                } else {
+                    let right_val = eval(right)?;
+                    if let Value::Bool(right_val) = right_val {
+                        Ok(Value::Bool(right_val))
+                    } else {
+                        Err(format!(
+                            "expect bool on right side with || operator: {right_val:?}"
+                        ))
+                    }
+                }
+            } else {
+                Err(format!(
+                    "expect bool on left side with || operator: {left_val:?}"
+                ))
+            }
+        }
     }
 }
 
@@ -95,6 +183,17 @@ mod test {
                 Box::new(Expr::Bool(true)),
             )),
             Err("expect num on both sides: Num(1.0) + Bool(true)".into())
+        );
+
+        assert_eq!(
+            eval(&Expr::Or(
+                Box::new(Expr::And(
+                    Box::new(Expr::Bool(true)),
+                    Box::new(Expr::Bool(false)),
+                )),
+                Box::new(Expr::Bool(true)),
+            )),
+            Ok(Value::Bool(true))
         );
 
         assert_eq!(
