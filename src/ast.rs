@@ -4,6 +4,10 @@ pub enum Expr {
     Bool(bool),
     Num(f64),
 
+    // unary operators
+    Neg(Box<Expr>),
+    Not(Box<Expr>),
+
     // binary operators
     Add(Box<Expr>, Box<Expr>),
     Sub(Box<Expr>, Box<Expr>),

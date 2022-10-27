@@ -13,6 +13,24 @@ pub fn eval(expr: &Expr) -> Result<Value> {
         Expr::Bool(val) => Ok(Value::Bool(*val)),
         Expr::Num(val) => Ok(Value::Num(*val)),
 
+        Expr::Neg(expr) => {
+            let val = eval(expr)?;
+            if let Value::Num(val) = val {
+                Ok(Value::Num(-val))
+            } else {
+                Err(format!("can't negate {val:?}"))
+            }
+        }
+
+        Expr::Not(expr) => {
+            let val = eval(expr)?;
+            if let Value::Bool(val) = val {
+                Ok(Value::Bool(!val))
+            } else {
+                Err(format!("can't not {val:?}"))
+            }
+        }
+
         Expr::Add(left, right) => {
             let left_val = eval(left)?;
             let right_val = eval(right)?;
@@ -183,6 +201,16 @@ mod test {
                 Box::new(Expr::Bool(true)),
             )),
             Err("expect num on both sides: Num(1.0) + Bool(true)".into())
+        );
+
+        assert_eq!(
+            eval(&Expr::Not(Box::new(Expr::Bool(true)))),
+            Ok(Value::Bool(false))
+        );
+
+        assert_eq!(
+            eval(&Expr::Neg(Box::new(Expr::Num(3.0)))),
+            Ok(Value::Num(-3.0))
         );
 
         assert_eq!(

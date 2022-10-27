@@ -15,15 +15,22 @@ fn expr() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> {
             .or(number)
             .or(expr.delimited_by(just('('), just(')')));
 
+        let unary = just('-')
+            .to(Expr::Neg as fn(_) -> _)
+            .or(just('!').to(Expr::Not as fn(_) -> _))
+            .then(primary.clone())
+            .map(|(unary, primary)| unary(Box::new(primary)))
+            .or(primary);
+
         let op = |c| just(c).delimited_by(just(' '), just(' '));
 
-        let factor = primary
+        let factor = unary
             .clone()
             .then(
                 op("*")
                     .to(Expr::Mul as fn(_, _) -> _)
                     .or(op("/").to(Expr::Div as fn(_, _) -> _))
-                    .then(primary)
+                    .then(unary)
                     .repeated(),
             )
             .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)));
@@ -104,6 +111,9 @@ mod test {
 
         assert_ok!("1", Expr::Num(1.0));
         assert_ok!("10", Expr::Num(10.0));
+
+        assert_ok!("!true", Expr::Not(Box::new(Expr::Bool(true))));
+        assert_ok!("-1", Expr::Neg(Box::new(Expr::Num(1.0))));
 
         assert_err!("1+2");
 
