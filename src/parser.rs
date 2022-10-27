@@ -183,16 +183,19 @@ mod test {
         );
 
         assert_ok!(
-            "(1 + 2 == 3) == true",
-            Expr::Eq(
+            "1 + 2 <= -4 == false || !true",
+            Expr::Or(
                 Box::new(Expr::Eq(
-                    Box::new(Expr::Add(
-                        Box::new(Expr::Num(1.0)),
-                        Box::new(Expr::Num(2.0)),
+                    Box::new(Expr::Lte(
+                        Box::new(Expr::Add(
+                            Box::new(Expr::Num(1.0)),
+                            Box::new(Expr::Num(2.0)),
+                        )),
+                        Box::new(Expr::Neg(Box::new(Expr::Num(4.0)))),
                     )),
-                    Box::new(Expr::Num(3.0)),
+                    Box::new(Expr::Bool(false)),
                 )),
-                Box::new(Expr::Bool(true)),
+                Box::new(Expr::Not(Box::new(Expr::Bool(true)))),
             )
         );
     }
