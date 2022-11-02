@@ -1,8 +1,11 @@
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expr {
     // literals
+    Nil,
     Bool(bool),
     Num(f64),
+    Str(String),
+    Ident(String),
 
     // unary operators
     Neg(Box<Expr>),

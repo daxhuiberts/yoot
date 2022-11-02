@@ -4,14 +4,19 @@ type Result<T> = std::result::Result<T, String>;
 
 #[derive(Debug, PartialEq)]
 pub enum Value {
+    Nil,
     Bool(bool),
     Num(f64),
+    Str(String),
 }
 
 pub fn eval(expr: &Expr) -> Result<Value> {
     match expr {
+        Expr::Nil => Ok(Value::Nil),
         Expr::Bool(val) => Ok(Value::Bool(*val)),
         Expr::Num(val) => Ok(Value::Num(*val)),
+        Expr::Str(val) => Ok(Value::Str(val.clone())),
+        Expr::Ident(_) => Err("no support for identifiers yet".into()),
 
         Expr::Neg(expr) => {
             let val = eval(expr)?;
@@ -79,8 +84,10 @@ pub fn eval(expr: &Expr) -> Result<Value> {
             let left_val = eval(left)?;
             let right_val = eval(right)?;
             match (&left_val, &right_val) {
+                (Value::Nil, Value::Nil) => Ok(Value::Bool(true)),
                 (Value::Bool(left), Value::Bool(right)) => Ok(Value::Bool(left == right)),
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left == right)),
+                (Value::Str(left), Value::Str(right)) => Ok(Value::Bool(left == right)),
                 _ => Err(format!(
                     "expect same type on both sides: {left_val:?} == {right_val:?}"
                 )),
@@ -91,8 +98,10 @@ pub fn eval(expr: &Expr) -> Result<Value> {
             let left_val = eval(left)?;
             let right_val = eval(right)?;
             match (&left_val, &right_val) {
+                (Value::Nil, Value::Nil) => Ok(Value::Bool(false)),
                 (Value::Bool(left), Value::Bool(right)) => Ok(Value::Bool(left != right)),
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left != right)),
+                (Value::Str(left), Value::Str(right)) => Ok(Value::Bool(left != right)),
                 _ => Err(format!(
                     "expect same type on both sides: {left_val:?} != {right_val:?}"
                 )),
@@ -104,8 +113,9 @@ pub fn eval(expr: &Expr) -> Result<Value> {
             let right_val = eval(right)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left < right)),
+                (Value::Str(left), Value::Str(right)) => Ok(Value::Bool(left < right)),
                 _ => Err(format!(
-                    "expect num on both sides: {left_val:?} < {right_val:?}"
+                    "expect num or str on both sides: {left_val:?} < {right_val:?}"
                 )),
             }
         }
@@ -115,8 +125,9 @@ pub fn eval(expr: &Expr) -> Result<Value> {
             let right_val = eval(right)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left <= right)),
+                (Value::Str(left), Value::Str(right)) => Ok(Value::Bool(left <= right)),
                 _ => Err(format!(
-                    "expect num on both sides: {left_val:?} <= {right_val:?}"
+                    "expect num or str on both sides: {left_val:?} <= {right_val:?}"
                 )),
             }
         }
@@ -126,8 +137,9 @@ pub fn eval(expr: &Expr) -> Result<Value> {
             let right_val = eval(right)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left > right)),
+                (Value::Str(left), Value::Str(right)) => Ok(Value::Bool(left > right)),
                 _ => Err(format!(
-                    "expect num on both sides: {left_val:?} > {right_val:?}"
+                    "expect num or str on both sides: {left_val:?} > {right_val:?}"
                 )),
             }
         }
@@ -137,8 +149,9 @@ pub fn eval(expr: &Expr) -> Result<Value> {
             let right_val = eval(right)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left >= right)),
+                (Value::Str(left), Value::Str(right)) => Ok(Value::Bool(left >= right)),
                 _ => Err(format!(
-                    "expect num on both sides: {left_val:?} >= {right_val:?}"
+                    "expect num or str on both sides: {left_val:?} >= {right_val:?}"
                 )),
             }
         }

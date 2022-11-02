@@ -4,16 +4,31 @@ use chumsky::prelude::*;
 
 fn expr() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> {
     recursive(|expr| {
+        let nil = just("nil").map(|_| Expr::Nil);
+
         let boolean = just("true")
             .to(true)
             .or(just("false").to(false))
             .map(Expr::Bool);
 
+        let identifier = text::ident().map(Expr::Ident);
+
         let number = text::int(10).from_str().unwrapped().map(Expr::Num);
 
-        let primary = boolean
+        let string = just("\"")
+            .ignore_then(none_of("\"").repeated())
+            .then_ignore(just("\""))
+            .collect::<String>()
+            .map(Expr::Str);
+
+        let subexpression = expr.delimited_by(just('('), just(')'));
+
+        let primary = nil
+            .or(boolean)
+            .or(identifier)
             .or(number)
-            .or(expr.delimited_by(just('('), just(')')));
+            .or(string)
+            .or(subexpression);
 
         let unary = just('-')
             .to(Expr::Neg as fn(_) -> _)
@@ -101,16 +116,25 @@ mod test {
     fn test_parser() {
         assert_err!("");
         assert_err!(" ");
-        assert_err!("a");
-        assert_err!("a1");
         assert_err!("1a");
         assert_err!("01");
+
+        assert_ok!("nil", Expr::Nil);
 
         assert_ok!("true", Expr::Bool(true));
         assert_ok!("false", Expr::Bool(false));
 
+        assert_ok!("a", Expr::Ident("a".to_string()));
+        assert_ok!("a1", Expr::Ident("a1".to_string()));
+        assert_ok!("foo", Expr::Ident("foo".to_string()));
+        assert_ok!("bar", Expr::Ident("bar".to_string()));
+
         assert_ok!("1", Expr::Num(1.0));
         assert_ok!("10", Expr::Num(10.0));
+
+        assert_ok!("\"hello\"", Expr::Str("hello".to_string()));
+        assert_ok!("\"world\"", Expr::Str("world".to_string()));
+        assert_ok!("\"hello world\"", Expr::Str("hello world".to_string()));
 
         assert_ok!("!true", Expr::Not(Box::new(Expr::Bool(true))));
         assert_ok!("-1", Expr::Neg(Box::new(Expr::Num(1.0))));
