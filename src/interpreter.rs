@@ -256,10 +256,10 @@ mod test {
     #[test]
     fn test_eval() {
         assert_eq!(
-            eval(&Expr::Add(
-                Box::new(Expr::Num(1.0)),
-                Box::new(Expr::Bool(true)),
-            ), &Vec::new()),
+            eval(
+                &Expr::Add(Box::new(Expr::Num(1.0)), Box::new(Expr::Bool(true)),),
+                &Vec::new()
+            ),
             Err("expect num on both sides: Num(1.0) + Bool(true)".into())
         );
 
@@ -274,58 +274,70 @@ mod test {
         );
 
         assert_eq!(
-            eval(&Expr::Or(
-                Box::new(Expr::And(
+            eval(
+                &Expr::Or(
+                    Box::new(Expr::And(
+                        Box::new(Expr::Bool(true)),
+                        Box::new(Expr::Bool(false)),
+                    )),
                     Box::new(Expr::Bool(true)),
-                    Box::new(Expr::Bool(false)),
-                )),
-                Box::new(Expr::Bool(true)),
-            ), &Vec::new()),
+                ),
+                &Vec::new()
+            ),
             Ok(Value::Bool(true))
         );
 
         assert_eq!(
-            eval(&Expr::Sub(
-                Box::new(Expr::Add(
-                    Box::new(Expr::Num(1.0)),
-                    Box::new(Expr::Mul(
-                        Box::new(Expr::Num(2.0)),
-                        Box::new(Expr::Num(3.0))
-                    ))
-                )),
-                Box::new(Expr::Num(4.0))
-            ), &Vec::new()),
+            eval(
+                &Expr::Sub(
+                    Box::new(Expr::Add(
+                        Box::new(Expr::Num(1.0)),
+                        Box::new(Expr::Mul(
+                            Box::new(Expr::Num(2.0)),
+                            Box::new(Expr::Num(3.0))
+                        ))
+                    )),
+                    Box::new(Expr::Num(4.0))
+                ),
+                &Vec::new()
+            ),
             Ok(Value::Num(3.0))
         );
 
         assert_eq!(
-            eval(&Expr::Mul(
-                Box::new(Expr::Add(
-                    Box::new(Expr::Num(1.0)),
-                    Box::new(Expr::Num(2.0))
-                )),
-                Box::new(Expr::Sub(
-                    Box::new(Expr::Num(3.0)),
-                    Box::new(Expr::Num(4.0))
-                ))
-            ), &Vec::new()),
+            eval(
+                &Expr::Mul(
+                    Box::new(Expr::Add(
+                        Box::new(Expr::Num(1.0)),
+                        Box::new(Expr::Num(2.0))
+                    )),
+                    Box::new(Expr::Sub(
+                        Box::new(Expr::Num(3.0)),
+                        Box::new(Expr::Num(4.0))
+                    ))
+                ),
+                &Vec::new()
+            ),
             Ok(Value::Num(-3.0))
         );
 
         assert_eq!(
-            eval(&Expr::Or(
-                Box::new(Expr::Eq(
-                    Box::new(Expr::Lte(
-                        Box::new(Expr::Add(
-                            Box::new(Expr::Num(1.0)),
-                            Box::new(Expr::Num(2.0)),
+            eval(
+                &Expr::Or(
+                    Box::new(Expr::Eq(
+                        Box::new(Expr::Lte(
+                            Box::new(Expr::Add(
+                                Box::new(Expr::Num(1.0)),
+                                Box::new(Expr::Num(2.0)),
+                            )),
+                            Box::new(Expr::Neg(Box::new(Expr::Num(4.0)))),
                         )),
-                        Box::new(Expr::Neg(Box::new(Expr::Num(4.0)))),
+                        Box::new(Expr::Bool(false)),
                     )),
-                    Box::new(Expr::Bool(false)),
-                )),
-                Box::new(Expr::Not(Box::new(Expr::Bool(true)))),
-            ), &Vec::new()),
+                    Box::new(Expr::Not(Box::new(Expr::Bool(true)))),
+                ),
+                &Vec::new()
+            ),
             Ok(Value::Bool(true))
         );
     }
