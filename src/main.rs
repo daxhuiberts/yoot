@@ -1,3 +1,4 @@
+use self::interpreter::Interpreter;
 use self::parser::parser;
 use chumsky::Parser;
 use std::error::Error;
@@ -10,11 +11,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     let src: String = std::fs::read_to_string(std::env::args().nth(1).unwrap()).unwrap();
 
     let parser = parser();
-    let ast = parser.parse(src).map_err(|err| format!("{err:?}"))?;
+    let program = parser.parse(src).map_err(|err| format!("{err:?}"))?;
 
-    println!("AST: {ast:?}");
+    println!("PROGRAM: {program:#?}");
 
-    let result = interpreter::eval(&ast);
+    let mut interpreter = Interpreter::new(&program);
+    let result = interpreter.execute()?;
 
     println!("RESULT: {result:?}");
 

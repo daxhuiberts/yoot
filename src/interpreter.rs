@@ -1,8 +1,8 @@
-use super::ast::Expr;
+use super::ast::*;
 
 type Result<T> = std::result::Result<T, String>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Nil,
     Bool(bool),
@@ -10,16 +10,63 @@ pub enum Value {
     Str(String),
 }
 
-pub fn eval(expr: &Expr) -> Result<Value> {
+#[derive(Clone, Debug)]
+struct Var {
+    name: String,
+    value: Value,
+}
+
+pub struct Interpreter<'a> {
+    program: &'a Program,
+    vars: Vec<Var>,
+}
+
+impl<'a> Interpreter<'a> {
+    pub fn new(program: &'a Program) -> Self {
+        Self {
+            program,
+            vars: Vec::new(),
+        }
+    }
+
+    pub fn execute(&mut self) -> Result<Value> {
+        let mut last = Value::Nil;
+
+        for decl in self.program.decls() {
+            last = match decl {
+                Decl::Ass { name, expr } => {
+                    let value = eval(expr, &self.vars)?;
+                    self.vars.push(Var {
+                        name: name.clone(),
+                        value,
+                    });
+                    Value::Nil
+                }
+                Decl::Stm { expr } => eval(expr, &self.vars)?,
+            }
+        }
+
+        Ok(last)
+    }
+}
+
+fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
     match expr {
         Expr::Nil => Ok(Value::Nil),
         Expr::Bool(val) => Ok(Value::Bool(*val)),
         Expr::Num(val) => Ok(Value::Num(*val)),
         Expr::Str(val) => Ok(Value::Str(val.clone())),
-        Expr::Ident(_) => Err("no support for identifiers yet".into()),
+
+        Expr::Ident(name) => {
+            if let Some(Var { value, .. }) = vars.iter().rev().find(|var| var.name == *name) {
+                Ok(value.clone())
+            } else {
+                Err(format!("Cannot find variable `{}` in scope", name))
+            }
+        }
 
         Expr::Neg(expr) => {
-            let val = eval(expr)?;
+            let val = eval(expr, vars)?;
             if let Value::Num(val) = val {
                 Ok(Value::Num(-val))
             } else {
@@ -28,7 +75,7 @@ pub fn eval(expr: &Expr) -> Result<Value> {
         }
 
         Expr::Not(expr) => {
-            let val = eval(expr)?;
+            let val = eval(expr, vars)?;
             if let Value::Bool(val) = val {
                 Ok(Value::Bool(!val))
             } else {
@@ -37,8 +84,8 @@ pub fn eval(expr: &Expr) -> Result<Value> {
         }
 
         Expr::Add(left, right) => {
-            let left_val = eval(left)?;
-            let right_val = eval(right)?;
+            let left_val = eval(left, vars)?;
+            let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Num(left + right)),
                 _ => Err(format!(
@@ -48,8 +95,8 @@ pub fn eval(expr: &Expr) -> Result<Value> {
         }
 
         Expr::Sub(left, right) => {
-            let left_val = eval(left)?;
-            let right_val = eval(right)?;
+            let left_val = eval(left, vars)?;
+            let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Num(left - right)),
                 _ => Err(format!(
@@ -59,8 +106,8 @@ pub fn eval(expr: &Expr) -> Result<Value> {
         }
 
         Expr::Mul(left, right) => {
-            let left_val = eval(left)?;
-            let right_val = eval(right)?;
+            let left_val = eval(left, vars)?;
+            let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Num(left * right)),
                 _ => Err(format!(
@@ -70,8 +117,8 @@ pub fn eval(expr: &Expr) -> Result<Value> {
         }
 
         Expr::Div(left, right) => {
-            let left_val = eval(left)?;
-            let right_val = eval(right)?;
+            let left_val = eval(left, vars)?;
+            let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Num(left / right)),
                 _ => Err(format!(
@@ -81,8 +128,8 @@ pub fn eval(expr: &Expr) -> Result<Value> {
         }
 
         Expr::Eq(left, right) => {
-            let left_val = eval(left)?;
-            let right_val = eval(right)?;
+            let left_val = eval(left, vars)?;
+            let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Nil, Value::Nil) => Ok(Value::Bool(true)),
                 (Value::Bool(left), Value::Bool(right)) => Ok(Value::Bool(left == right)),
@@ -95,8 +142,8 @@ pub fn eval(expr: &Expr) -> Result<Value> {
         }
 
         Expr::Neq(left, right) => {
-            let left_val = eval(left)?;
-            let right_val = eval(right)?;
+            let left_val = eval(left, vars)?;
+            let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Nil, Value::Nil) => Ok(Value::Bool(false)),
                 (Value::Bool(left), Value::Bool(right)) => Ok(Value::Bool(left != right)),
@@ -109,8 +156,8 @@ pub fn eval(expr: &Expr) -> Result<Value> {
         }
 
         Expr::Lt(left, right) => {
-            let left_val = eval(left)?;
-            let right_val = eval(right)?;
+            let left_val = eval(left, vars)?;
+            let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left < right)),
                 (Value::Str(left), Value::Str(right)) => Ok(Value::Bool(left < right)),
@@ -121,8 +168,8 @@ pub fn eval(expr: &Expr) -> Result<Value> {
         }
 
         Expr::Lte(left, right) => {
-            let left_val = eval(left)?;
-            let right_val = eval(right)?;
+            let left_val = eval(left, vars)?;
+            let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left <= right)),
                 (Value::Str(left), Value::Str(right)) => Ok(Value::Bool(left <= right)),
@@ -133,8 +180,8 @@ pub fn eval(expr: &Expr) -> Result<Value> {
         }
 
         Expr::Gt(left, right) => {
-            let left_val = eval(left)?;
-            let right_val = eval(right)?;
+            let left_val = eval(left, vars)?;
+            let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left > right)),
                 (Value::Str(left), Value::Str(right)) => Ok(Value::Bool(left > right)),
@@ -145,8 +192,8 @@ pub fn eval(expr: &Expr) -> Result<Value> {
         }
 
         Expr::Gte(left, right) => {
-            let left_val = eval(left)?;
-            let right_val = eval(right)?;
+            let left_val = eval(left, vars)?;
+            let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left >= right)),
                 (Value::Str(left), Value::Str(right)) => Ok(Value::Bool(left >= right)),
@@ -157,10 +204,10 @@ pub fn eval(expr: &Expr) -> Result<Value> {
         }
 
         Expr::And(left, right) => {
-            let left_val = eval(left)?;
+            let left_val = eval(left, vars)?;
             if let Value::Bool(left_val) = left_val {
                 if left_val {
-                    let right_val = eval(right)?;
+                    let right_val = eval(right, vars)?;
                     if let Value::Bool(right_val) = right_val {
                         Ok(Value::Bool(right_val))
                     } else {
@@ -179,12 +226,12 @@ pub fn eval(expr: &Expr) -> Result<Value> {
         }
 
         Expr::Or(left, right) => {
-            let left_val = eval(left)?;
+            let left_val = eval(left, vars)?;
             if let Value::Bool(left_val) = left_val {
                 if left_val {
                     Ok(Value::Bool(true))
                 } else {
-                    let right_val = eval(right)?;
+                    let right_val = eval(right, vars)?;
                     if let Value::Bool(right_val) = right_val {
                         Ok(Value::Bool(right_val))
                     } else {
@@ -212,17 +259,17 @@ mod test {
             eval(&Expr::Add(
                 Box::new(Expr::Num(1.0)),
                 Box::new(Expr::Bool(true)),
-            )),
+            ), &Vec::new()),
             Err("expect num on both sides: Num(1.0) + Bool(true)".into())
         );
 
         assert_eq!(
-            eval(&Expr::Not(Box::new(Expr::Bool(true)))),
+            eval(&Expr::Not(Box::new(Expr::Bool(true))), &Vec::new()),
             Ok(Value::Bool(false))
         );
 
         assert_eq!(
-            eval(&Expr::Neg(Box::new(Expr::Num(3.0)))),
+            eval(&Expr::Neg(Box::new(Expr::Num(3.0))), &Vec::new()),
             Ok(Value::Num(-3.0))
         );
 
@@ -233,7 +280,7 @@ mod test {
                     Box::new(Expr::Bool(false)),
                 )),
                 Box::new(Expr::Bool(true)),
-            )),
+            ), &Vec::new()),
             Ok(Value::Bool(true))
         );
 
@@ -247,7 +294,7 @@ mod test {
                     ))
                 )),
                 Box::new(Expr::Num(4.0))
-            )),
+            ), &Vec::new()),
             Ok(Value::Num(3.0))
         );
 
@@ -261,7 +308,7 @@ mod test {
                     Box::new(Expr::Num(3.0)),
                     Box::new(Expr::Num(4.0))
                 ))
-            )),
+            ), &Vec::new()),
             Ok(Value::Num(-3.0))
         );
 
@@ -278,8 +325,36 @@ mod test {
                     Box::new(Expr::Bool(false)),
                 )),
                 Box::new(Expr::Not(Box::new(Expr::Bool(true)))),
-            )),
+            ), &Vec::new()),
             Ok(Value::Bool(true))
         );
+    }
+
+    #[test]
+    fn test_execute_assignments() {
+        let decls = vec![
+            Decl::Ass {
+                name: "foo".into(),
+                expr: Expr::Num(1.0),
+            },
+            Decl::Ass {
+                name: "bar".into(),
+                expr: Expr::Num(2.0),
+            },
+            Decl::Stm {
+                expr: Expr::Eq(
+                    Box::new(Expr::Add(
+                        Box::new(Expr::Ident("foo".into())),
+                        Box::new(Expr::Ident("bar".into())),
+                    )),
+                    Box::new(Expr::Num(3.0)),
+                ),
+            },
+        ];
+
+        let program = Program::new(decls);
+        let mut interpreter = Interpreter::new(&program);
+
+        assert_eq!(interpreter.execute(), Ok(Value::Bool(true)));
     }
 }

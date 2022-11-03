@@ -1,0 +1,5 @@
+foo = 3
+bar = 5
+quux = 5
+
+foo + bar == quux

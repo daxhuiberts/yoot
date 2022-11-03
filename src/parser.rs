@@ -1,8 +1,8 @@
-use super::ast::Expr;
+use super::ast::*;
 
 use chumsky::prelude::*;
 
-fn expr() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> {
+fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clone {
     recursive(|expr| {
         let nil = just("nil").map(|_| Expr::Nil);
 
@@ -10,8 +10,6 @@ fn expr() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> {
             .to(true)
             .or(just("false").to(false))
             .map(Expr::Bool);
-
-        let identifier = text::ident().map(Expr::Ident);
 
         let number = text::int(10).from_str().unwrapped().map(Expr::Num);
 
@@ -21,13 +19,15 @@ fn expr() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> {
             .collect::<String>()
             .map(Expr::Str);
 
+        let identifier = text::ident().map(Expr::Ident);
+
         let subexpression = expr.delimited_by(just('('), just(')'));
 
         let primary = nil
             .or(boolean)
-            .or(identifier)
             .or(number)
             .or(string)
+            .or(identifier)
             .or(subexpression);
 
         let unary = just('-')
@@ -92,71 +92,104 @@ fn expr() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> {
     })
 }
 
-pub fn parser() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> {
-    expr().then_ignore(just("\n").or_not()).then_ignore(end())
+fn declaration() -> impl chumsky::Parser<char, Vec<Decl>, Error = Simple<char>> {
+    let expression = expression();
+
+    let assignment = text::ident()
+        .then_ignore(just(" = "))
+        .then(expression.clone())
+        .map(|(name, expr)| Decl::Ass { name, expr });
+
+    let statement = expression.map(|expr| Decl::Stm { expr });
+
+    assignment
+        .or(statement)
+        .or_not()
+        .separated_by(just("\n"))
+        .allow_trailing()
+        .map(|decls| decls.into_iter().flatten().collect())
+}
+
+pub fn parser() -> impl chumsky::Parser<char, Program, Error = Simple<char>> {
+    declaration().then_ignore(end()).map(Program::new)
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
 
+    fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> {
+        super::expression().then_ignore(end())
+    }
+
+    fn declaration() -> impl chumsky::Parser<char, Vec<Decl>, Error = Simple<char>> {
+        super::declaration().then_ignore(end())
+    }
+
     macro_rules! assert_ok {
-        ($expression:literal, $expected:expr) => {
-            assert_eq!(parser().parse($expression), Ok($expected));
+        ($parser:ident, $program:literal, $expected:expr) => {
+            assert_eq!($parser().parse($program), Ok($expected));
         };
     }
 
     macro_rules! assert_err {
-        ($expression:literal) => {
-            assert!(parser().parse($expression).is_err());
+        ($parser:ident, $program:literal) => {
+            assert!($parser().parse($program).is_err());
         };
     }
 
     #[test]
-    fn test_parser() {
-        assert_err!("");
-        assert_err!(" ");
-        assert_err!("1a");
-        assert_err!("01");
+    fn test_expression() {
+        assert_err!(expression, "");
+        assert_err!(expression, " ");
+        assert_err!(expression, "1a");
+        assert_err!(expression, "01");
 
-        assert_ok!("nil", Expr::Nil);
+        assert_ok!(expression, "nil", Expr::Nil);
 
-        assert_ok!("true", Expr::Bool(true));
-        assert_ok!("false", Expr::Bool(false));
+        assert_ok!(expression, "true", Expr::Bool(true));
+        assert_ok!(expression, "false", Expr::Bool(false));
 
-        assert_ok!("a", Expr::Ident("a".to_string()));
-        assert_ok!("a1", Expr::Ident("a1".to_string()));
-        assert_ok!("foo", Expr::Ident("foo".to_string()));
-        assert_ok!("bar", Expr::Ident("bar".to_string()));
+        assert_ok!(expression, "a", Expr::Ident("a".to_string()));
+        assert_ok!(expression, "a1", Expr::Ident("a1".to_string()));
+        assert_ok!(expression, "foo", Expr::Ident("foo".to_string()));
+        assert_ok!(expression, "bar", Expr::Ident("bar".to_string()));
 
-        assert_ok!("1", Expr::Num(1.0));
-        assert_ok!("10", Expr::Num(10.0));
+        assert_ok!(expression, "1", Expr::Num(1.0));
+        assert_ok!(expression, "10", Expr::Num(10.0));
 
-        assert_ok!("\"hello\"", Expr::Str("hello".to_string()));
-        assert_ok!("\"world\"", Expr::Str("world".to_string()));
-        assert_ok!("\"hello world\"", Expr::Str("hello world".to_string()));
+        assert_ok!(expression, "\"hello\"", Expr::Str("hello".to_string()));
+        assert_ok!(expression, "\"world\"", Expr::Str("world".to_string()));
+        assert_ok!(
+            expression,
+            "\"hello world\"",
+            Expr::Str("hello world".to_string())
+        );
 
-        assert_ok!("!true", Expr::Not(Box::new(Expr::Bool(true))));
-        assert_ok!("-1", Expr::Neg(Box::new(Expr::Num(1.0))));
+        assert_ok!(expression, "!true", Expr::Not(Box::new(Expr::Bool(true))));
+        assert_ok!(expression, "-1", Expr::Neg(Box::new(Expr::Num(1.0))));
 
-        assert_err!("1+2");
+        assert_err!(expression, "1+2");
 
         assert_ok!(
+            expression,
             "1 + 2",
             Expr::Add(Box::new(Expr::Num(1.0)), Box::new(Expr::Num(2.0)))
         );
 
         assert_ok!(
+            expression,
             "2 - 1",
             Expr::Sub(Box::new(Expr::Num(2.0)), Box::new(Expr::Num(1.0)))
         );
 
-        assert_err!("()");
+        assert_err!(expression, "()");
 
-        assert_ok!("(true)", Expr::Bool(true));
-        assert_ok!("(1)", Expr::Num(1.0));
+        assert_ok!(expression, "(true)", Expr::Bool(true));
+        assert_ok!(expression, "(1)", Expr::Num(1.0));
 
         assert_ok!(
+            expression,
             "true && false || true",
             Expr::Or(
                 Box::new(Expr::And(
@@ -168,6 +201,7 @@ mod test {
         );
 
         assert_ok!(
+            expression,
             "true || false && true",
             Expr::Or(
                 Box::new(Expr::Bool(true)),
@@ -179,6 +213,7 @@ mod test {
         );
 
         assert_ok!(
+            expression,
             "1 + 2 * 3 - 4",
             Expr::Sub(
                 Box::new(Expr::Add(
@@ -193,6 +228,7 @@ mod test {
         );
 
         assert_ok!(
+            expression,
             "(1 + 2) * (3 - 4)",
             Expr::Mul(
                 Box::new(Expr::Add(
@@ -207,6 +243,7 @@ mod test {
         );
 
         assert_ok!(
+            expression,
             "1 + 2 <= -4 == false || !true",
             Expr::Or(
                 Box::new(Expr::Eq(
@@ -221,6 +258,33 @@ mod test {
                 )),
                 Box::new(Expr::Not(Box::new(Expr::Bool(true)))),
             )
+        );
+    }
+
+    #[test]
+    fn test_declaration() {
+        assert_ok!(
+            declaration,
+            "foo = 1\nbar = 2\nfoo + bar == 3",
+            vec![
+                Decl::Ass {
+                    name: "foo".into(),
+                    expr: Expr::Num(1.0)
+                },
+                Decl::Ass {
+                    name: "bar".into(),
+                    expr: Expr::Num(2.0)
+                },
+                Decl::Stm {
+                    expr: Expr::Eq(
+                        Box::new(Expr::Add(
+                            Box::new(Expr::Ident("foo".into())),
+                            Box::new(Expr::Ident("bar".into())),
+                        )),
+                        Box::new(Expr::Num(3.0)),
+                    )
+                }
+            ]
         );
     }
 }

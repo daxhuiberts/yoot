@@ -25,3 +25,22 @@ pub enum Expr {
     And(Box<Expr>, Box<Expr>),
     Or(Box<Expr>, Box<Expr>),
 }
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Decl {
+    Stm { expr: Expr },
+    Ass { name: String, expr: Expr },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Program(Vec<Decl>);
+
+impl Program {
+    pub fn new(decls: Vec<Decl>) -> Program {
+        Program(decls)
+    }
+
+    pub fn decls(&self) -> &[Decl] {
+        &self.0
+    }
+}
