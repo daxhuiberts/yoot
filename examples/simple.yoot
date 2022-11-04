@@ -1,5 +1,5 @@
 foo = 3
 bar = 5
-quux = 5
+add a b = a + b
 
-foo + bar == quux
+add(foo, bar) == 8

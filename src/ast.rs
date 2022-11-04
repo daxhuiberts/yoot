@@ -24,12 +24,24 @@ pub enum Expr {
     Lte(Box<Expr>, Box<Expr>),
     And(Box<Expr>, Box<Expr>),
     Or(Box<Expr>, Box<Expr>),
+
+    Call(String, Vec<Expr>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Decl {
-    Stm { expr: Expr },
-    Ass { name: String, expr: Expr },
+    Stm {
+        expr: Expr,
+    },
+    Ass {
+        name: String,
+        expr: Expr,
+    },
+    Fun {
+        name: String,
+        args: Vec<String>,
+        body: Expr,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]

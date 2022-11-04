@@ -19,6 +19,14 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
             .collect::<String>()
             .map(Expr::Str);
 
+        let call = text::ident()
+            .then(
+                expr.clone()
+                    .separated_by(just(", "))
+                    .delimited_by(just('('), just(')')),
+            )
+            .map(|(name, args)| Expr::Call(name, args));
+
         let identifier = text::ident().map(Expr::Ident);
 
         let subexpression = expr.delimited_by(just('('), just(')'));
@@ -27,6 +35,7 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
             .or(boolean)
             .or(number)
             .or(string)
+            .or(call)
             .or(identifier)
             .or(subexpression);
 
@@ -100,9 +109,17 @@ fn declaration() -> impl chumsky::Parser<char, Vec<Decl>, Error = Simple<char>> 
         .then(expression.clone())
         .map(|(name, expr)| Decl::Ass { name, expr });
 
+    let function = text::ident()
+        .then_ignore(just(" "))
+        .then(text::ident().separated_by(just(" ")))
+        .then_ignore(just(" = "))
+        .then(expression.clone())
+        .map(|((name, args), body)| Decl::Fun { name, args, body });
+
     let statement = expression.map(|expr| Decl::Stm { expr });
 
     assignment
+        .or(function)
         .or(statement)
         .or_not()
         .separated_by(just("\n"))
@@ -283,6 +300,24 @@ mod test {
                         )),
                         Box::new(Expr::Num(3.0)),
                     )
+                }
+            ]
+        );
+
+        assert_ok!(
+            declaration,
+            "add a b = a + b\nadd(1, 2)",
+            vec![
+                Decl::Fun {
+                    name: "add".into(),
+                    args: vec!["a".into(), "b".into()],
+                    body: Expr::Add(
+                        Box::new(Expr::Ident("a".into())),
+                        Box::new(Expr::Ident("b".into())),
+                    )
+                },
+                Decl::Stm {
+                    expr: Expr::Call("add".into(), vec![Expr::Num(1.0), Expr::Num(2.0)],)
                 }
             ]
         );

@@ -13,7 +13,13 @@ pub enum Value {
 #[derive(Clone, Debug)]
 struct Var {
     name: String,
-    value: Value,
+    kind: Kind,
+}
+
+#[derive(Clone, Debug)]
+enum Kind {
+    Val { value: Value },
+    Fun { args: Vec<String>, body: Expr },
 }
 
 pub struct Interpreter<'a> {
@@ -38,7 +44,17 @@ impl<'a> Interpreter<'a> {
                     let value = eval(expr, &self.vars)?;
                     self.vars.push(Var {
                         name: name.clone(),
-                        value,
+                        kind: Kind::Val { value },
+                    });
+                    Value::Nil
+                }
+                Decl::Fun { name, args, body } => {
+                    self.vars.push(Var {
+                        name: name.clone(),
+                        kind: Kind::Fun {
+                            args: args.clone(),
+                            body: body.clone(),
+                        },
                     });
                     Value::Nil
                 }
@@ -58,8 +74,12 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
         Expr::Str(val) => Ok(Value::Str(val.clone())),
 
         Expr::Ident(name) => {
-            if let Some(Var { value, .. }) = vars.iter().rev().find(|var| var.name == *name) {
-                Ok(value.clone())
+            if let Some(Var { kind, .. }) = vars.iter().rev().find(|var| var.name == *name) {
+                if let Kind::Val { value } = kind {
+                    Ok(value.clone())
+                } else {
+                    Err(format!("Variable `{}` is a function, not a value", name))
+                }
             } else {
                 Err(format!("Cannot find variable `{}` in scope", name))
             }
@@ -246,6 +266,47 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
                 ))
             }
         }
+
+        Expr::Call(name, args) => {
+            let var = vars.iter().rev().find(|var| var.name == *name);
+
+            if let Some(Var { kind, .. }) = var {
+                if let Kind::Fun {
+                    args: arg_names,
+                    body,
+                } = kind
+                {
+                    if arg_names.len() == args.len() {
+                        let mut args = args
+                            .iter()
+                            .zip(arg_names.iter())
+                            .map(|(arg, name)| {
+                                Ok(Var {
+                                    name: name.clone(),
+                                    kind: Kind::Val {
+                                        value: eval(arg, vars)?,
+                                    },
+                                })
+                            })
+                            .collect::<Result<_>>()?;
+                        let mut cloned_vars = vars.to_owned();
+                        cloned_vars.append(&mut args);
+                        eval(body, &cloned_vars)
+                    } else {
+                        Err(format!(
+                            "Wrong number of arguments for function `{}`: expected {}, found {}",
+                            name,
+                            arg_names.len(),
+                            args.len()
+                        ))
+                    }
+                } else {
+                    Err(format!("Variable `{}` is a value, not a function", name))
+                }
+            } else {
+                Err(format!("Cannot find variable `{}` in scope", name))
+            }
+        }
     }
 }
 
@@ -368,5 +429,27 @@ mod test {
         let mut interpreter = Interpreter::new(&program);
 
         assert_eq!(interpreter.execute(), Ok(Value::Bool(true)));
+    }
+
+    #[test]
+    fn test_execute_function_call() {
+        let decls = vec![
+            Decl::Fun {
+                name: "add".into(),
+                args: vec!["a".into(), "b".into()],
+                body: Expr::Add(
+                    Box::new(Expr::Ident("a".into())),
+                    Box::new(Expr::Ident("b".into())),
+                ),
+            },
+            Decl::Stm {
+                expr: Expr::Call("add".into(), vec![Expr::Num(1.0), Expr::Num(2.0)]),
+            },
+        ];
+
+        let program = Program::new(decls);
+        let mut interpreter = Interpreter::new(&program);
+
+        assert_eq!(interpreter.execute(), Ok(Value::Num(3.0)));
     }
 }
