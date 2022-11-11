@@ -267,6 +267,26 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
+        Expr::If(cond, then, else_) => {
+            let cond_val = eval(cond, vars)?;
+
+            if let Value::Bool(cond_val) = cond_val {
+                if cond_val {
+                    let then_val = eval(then, vars)?;
+                    Ok(then_val)
+                } else if let Some(else_) = else_ {
+                    let else_val = eval(else_, vars)?;
+                    Ok(else_val)
+                } else {
+                    Ok(Value::Nil)
+                }
+            } else {
+                Err(format!(
+                    "expect bool as condition for if statement: {cond_val:?}"
+                ))
+            }
+        }
+
         Expr::Call(name, args) => {
             let var = vars.iter().rev().find(|var| var.name == *name);
 
@@ -400,6 +420,57 @@ mod test {
                 &Vec::new()
             ),
             Ok(Value::Bool(true))
+        );
+    }
+
+    #[test]
+    fn test_execute_if_statement() {
+        assert_eq!(
+            eval(
+                &Expr::If(
+                    Box::new(Expr::Bool(true)),
+                    Box::new(Expr::Num(1.0)),
+                    Some(Box::new(Expr::Num(2.0))),
+                ),
+                &Vec::new()
+            ),
+            Ok(Value::Num(1.0))
+        );
+
+        assert_eq!(
+            eval(
+                &Expr::If(
+                    Box::new(Expr::Bool(false)),
+                    Box::new(Expr::Num(1.0)),
+                    Some(Box::new(Expr::Num(2.0))),
+                ),
+                &Vec::new()
+            ),
+            Ok(Value::Num(2.0))
+        );
+
+        assert_eq!(
+            eval(
+                &Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Num(1.0)), None,),
+                &Vec::new()
+            ),
+            Ok(Value::Num(1.0))
+        );
+
+        assert_eq!(
+            eval(
+                &Expr::If(Box::new(Expr::Bool(false)), Box::new(Expr::Num(1.0)), None,),
+                &Vec::new()
+            ),
+            Ok(Value::Nil)
+        );
+
+        assert_eq!(
+            eval(
+                &Expr::If(Box::new(Expr::Nil), Box::new(Expr::Num(1.0)), None,),
+                &Vec::new()
+            ),
+            Err("expect bool as condition for if statement: Nil".into())
         );
     }
 

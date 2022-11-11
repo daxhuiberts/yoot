@@ -25,6 +25,8 @@ pub enum Expr {
     And(Box<Expr>, Box<Expr>),
     Or(Box<Expr>, Box<Expr>),
 
+    If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
+
     Call(String, Vec<Expr>),
 }
 

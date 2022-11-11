@@ -19,6 +19,18 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
             .collect::<String>()
             .map(Expr::Str);
 
+        let if_ = just("if")
+            .ignore_then(
+                expr.clone()
+                    .then_ignore(just(", "))
+                    .then(expr.clone())
+                    .then(just(", ").ignore_then(expr.clone()).or_not())
+                    .delimited_by(just('('), just(')')),
+            )
+            .map(|((cond, then), else_)| {
+                Expr::If(Box::new(cond), Box::new(then), else_.map(Box::new))
+            });
+
         let call = text::ident()
             .then(
                 expr.clone()
@@ -35,6 +47,7 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
             .or(boolean)
             .or(number)
             .or(string)
+            .or(if_)
             .or(call)
             .or(identifier)
             .or(subexpression);
@@ -274,6 +287,25 @@ mod test {
                     Box::new(Expr::Bool(false)),
                 )),
                 Box::new(Expr::Not(Box::new(Expr::Bool(true)))),
+            )
+        );
+    }
+
+    #[test]
+    fn test_if_statement() {
+        assert_ok!(
+            expression,
+            "if(true, 1)",
+            Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Num(1.0)), None,)
+        );
+
+        assert_ok!(
+            expression,
+            "if(true, 1, 2)",
+            Expr::If(
+                Box::new(Expr::Bool(true)),
+                Box::new(Expr::Num(1.0)),
+                Some(Box::new(Expr::Num(2.0))),
             )
         );
     }
