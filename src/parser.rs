@@ -50,7 +50,8 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
             .or(if_)
             .or(call)
             .or(identifier)
-            .or(subexpression);
+            .or(subexpression)
+            .boxed();
 
         let unary = just('-')
             .to(Expr::Neg as fn(_) -> _)
