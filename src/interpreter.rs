@@ -333,36 +333,25 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::ast::macros::*;
 
     #[test]
     fn test_eval() {
         assert_eq!(
-            eval(
-                &Expr::Add(Box::new(Expr::Num(1.0)), Box::new(Expr::Bool(true)),),
-                &Vec::new()
-            ),
+            eval(&add!(num!(1.0), bool!(true)), &Vec::new()),
             Err("expect num on both sides: Num(1.0) + Bool(true)".into())
         );
 
         assert_eq!(
-            eval(&Expr::Not(Box::new(Expr::Bool(true))), &Vec::new()),
+            eval(&not!(bool!(true)), &Vec::new()),
             Ok(Value::Bool(false))
         );
 
-        assert_eq!(
-            eval(&Expr::Neg(Box::new(Expr::Num(3.0))), &Vec::new()),
-            Ok(Value::Num(-3.0))
-        );
+        assert_eq!(eval(&neg!(num!(3.0)), &Vec::new()), Ok(Value::Num(-3.0)));
 
         assert_eq!(
             eval(
-                &Expr::Or(
-                    Box::new(Expr::And(
-                        Box::new(Expr::Bool(true)),
-                        Box::new(Expr::Bool(false)),
-                    )),
-                    Box::new(Expr::Bool(true)),
-                ),
+                &or!(and!(bool!(true), bool!(false)), bool!(true)),
                 &Vec::new()
             ),
             Ok(Value::Bool(true))
@@ -370,16 +359,7 @@ mod test {
 
         assert_eq!(
             eval(
-                &Expr::Sub(
-                    Box::new(Expr::Add(
-                        Box::new(Expr::Num(1.0)),
-                        Box::new(Expr::Mul(
-                            Box::new(Expr::Num(2.0)),
-                            Box::new(Expr::Num(3.0))
-                        ))
-                    )),
-                    Box::new(Expr::Num(4.0))
-                ),
+                &sub!(add!(num!(1.0), mul!(num!(2.0), num!(3.0))), num!(4.0)),
                 &Vec::new()
             ),
             Ok(Value::Num(3.0))
@@ -387,16 +367,7 @@ mod test {
 
         assert_eq!(
             eval(
-                &Expr::Mul(
-                    Box::new(Expr::Add(
-                        Box::new(Expr::Num(1.0)),
-                        Box::new(Expr::Num(2.0))
-                    )),
-                    Box::new(Expr::Sub(
-                        Box::new(Expr::Num(3.0)),
-                        Box::new(Expr::Num(4.0))
-                    ))
-                ),
+                &mul!(add!(num!(1.0), num!(2.0)), sub!(num!(3.0), num!(4.0))),
                 &Vec::new()
             ),
             Ok(Value::Num(-3.0))
@@ -404,18 +375,12 @@ mod test {
 
         assert_eq!(
             eval(
-                &Expr::Or(
-                    Box::new(Expr::Eq(
-                        Box::new(Expr::Lte(
-                            Box::new(Expr::Add(
-                                Box::new(Expr::Num(1.0)),
-                                Box::new(Expr::Num(2.0)),
-                            )),
-                            Box::new(Expr::Neg(Box::new(Expr::Num(4.0)))),
-                        )),
-                        Box::new(Expr::Bool(false)),
-                    )),
-                    Box::new(Expr::Not(Box::new(Expr::Bool(true)))),
+                &or!(
+                    eq!(
+                        lte!(add!(num!(1.0), num!(2.0)), neg!(num!(4.0))),
+                        bool!(false)
+                    ),
+                    not!(bool!(true))
                 ),
                 &Vec::new()
             ),
@@ -426,50 +391,27 @@ mod test {
     #[test]
     fn test_execute_if_statement() {
         assert_eq!(
-            eval(
-                &Expr::If(
-                    Box::new(Expr::Bool(true)),
-                    Box::new(Expr::Num(1.0)),
-                    Some(Box::new(Expr::Num(2.0))),
-                ),
-                &Vec::new()
-            ),
+            eval(&iff!(bool!(true), num!(1.0), num!(2.0)), &Vec::new()),
             Ok(Value::Num(1.0))
         );
 
         assert_eq!(
-            eval(
-                &Expr::If(
-                    Box::new(Expr::Bool(false)),
-                    Box::new(Expr::Num(1.0)),
-                    Some(Box::new(Expr::Num(2.0))),
-                ),
-                &Vec::new()
-            ),
+            eval(&iff!(bool!(false), num!(1.0), num!(2.0)), &Vec::new()),
             Ok(Value::Num(2.0))
         );
 
         assert_eq!(
-            eval(
-                &Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Num(1.0)), None,),
-                &Vec::new()
-            ),
+            eval(&iff!(bool!(true), num!(1.0)), &Vec::new()),
             Ok(Value::Num(1.0))
         );
 
         assert_eq!(
-            eval(
-                &Expr::If(Box::new(Expr::Bool(false)), Box::new(Expr::Num(1.0)), None,),
-                &Vec::new()
-            ),
+            eval(&iff!(bool!(false), num!(1.0)), &Vec::new()),
             Ok(Value::Nil)
         );
 
         assert_eq!(
-            eval(
-                &Expr::If(Box::new(Expr::Nil), Box::new(Expr::Num(1.0)), None,),
-                &Vec::new()
-            ),
+            eval(&iff!(nil!(), num!(1.0)), &Vec::new()),
             Err("expect bool as condition for if statement: Nil".into())
         );
     }
@@ -477,23 +419,9 @@ mod test {
     #[test]
     fn test_execute_assignments() {
         let decls = vec![
-            Decl::Ass {
-                name: "foo".into(),
-                expr: Expr::Num(1.0),
-            },
-            Decl::Ass {
-                name: "bar".into(),
-                expr: Expr::Num(2.0),
-            },
-            Decl::Stm {
-                expr: Expr::Eq(
-                    Box::new(Expr::Add(
-                        Box::new(Expr::Ident("foo".into())),
-                        Box::new(Expr::Ident("bar".into())),
-                    )),
-                    Box::new(Expr::Num(3.0)),
-                ),
-            },
+            ass!(foo, num!(1.0)),
+            ass!(bar, num!(2.0)),
+            stm!(eq!(add!(ident!(foo), ident!(bar)), num!(3.0))),
         ];
 
         let program = Program::new(decls);
@@ -505,17 +433,8 @@ mod test {
     #[test]
     fn test_execute_function_call() {
         let decls = vec![
-            Decl::Fun {
-                name: "add".into(),
-                args: vec!["a".into(), "b".into()],
-                body: Expr::Add(
-                    Box::new(Expr::Ident("a".into())),
-                    Box::new(Expr::Ident("b".into())),
-                ),
-            },
-            Decl::Stm {
-                expr: Expr::Call("add".into(), vec![Expr::Num(1.0), Expr::Num(2.0)]),
-            },
+            fun!(add, [a, b], add!(ident!(a), ident!(b))),
+            stm!(call!(add, num!(1.0), num!(2.0))),
         ];
 
         let program = Program::new(decls);

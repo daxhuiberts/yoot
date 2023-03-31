@@ -148,6 +148,7 @@ pub fn parser() -> impl chumsky::Parser<char, Program, Error = Simple<char>> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::ast::macros::*;
 
     fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> {
         super::expression().then_ignore(end())
@@ -176,138 +177,82 @@ mod test {
         assert_err!(expression, "1a");
         assert_err!(expression, "01");
 
-        assert_ok!(expression, "nil", Expr::Nil);
+        assert_ok!(expression, "nil", nil!());
 
-        assert_ok!(expression, "true", Expr::Bool(true));
-        assert_ok!(expression, "false", Expr::Bool(false));
+        assert_ok!(expression, "true", bool!(true));
+        assert_ok!(expression, "false", bool!(false));
 
-        assert_ok!(expression, "a", Expr::Ident("a".to_string()));
-        assert_ok!(expression, "a1", Expr::Ident("a1".to_string()));
-        assert_ok!(expression, "foo", Expr::Ident("foo".to_string()));
-        assert_ok!(expression, "bar", Expr::Ident("bar".to_string()));
+        assert_ok!(expression, "a", ident!(a));
+        assert_ok!(expression, "a1", ident!(a1));
+        assert_ok!(expression, "foo", ident!(foo));
+        assert_ok!(expression, "bar", ident!(bar));
 
-        assert_ok!(expression, "1", Expr::Num(1.0));
-        assert_ok!(expression, "10", Expr::Num(10.0));
+        assert_ok!(expression, "1", num!(1.0));
+        assert_ok!(expression, "10", num!(10.0));
 
-        assert_ok!(expression, "\"hello\"", Expr::Str("hello".to_string()));
-        assert_ok!(expression, "\"world\"", Expr::Str("world".to_string()));
-        assert_ok!(
-            expression,
-            "\"hello world\"",
-            Expr::Str("hello world".to_string())
-        );
+        assert_ok!(expression, "\"hello\"", str!("hello"));
+        assert_ok!(expression, "\"world\"", str!("world"));
+        assert_ok!(expression, "\"hello world\"", str!("hello world"));
 
-        assert_ok!(expression, "!true", Expr::Not(Box::new(Expr::Bool(true))));
-        assert_ok!(expression, "-1", Expr::Neg(Box::new(Expr::Num(1.0))));
+        assert_ok!(expression, "!true", not!(bool!(true)));
+        assert_ok!(expression, "-1", neg!(num!(1.0)));
 
         assert_err!(expression, "1+2");
 
-        assert_ok!(
-            expression,
-            "1 + 2",
-            Expr::Add(Box::new(Expr::Num(1.0)), Box::new(Expr::Num(2.0)))
-        );
+        assert_ok!(expression, "1 + 2", add!(num!(1.0), num!(2.0)));
 
-        assert_ok!(
-            expression,
-            "2 - 1",
-            Expr::Sub(Box::new(Expr::Num(2.0)), Box::new(Expr::Num(1.0)))
-        );
+        assert_ok!(expression, "2 - 1", sub!(num!(2.0), num!(1.0)));
 
         assert_err!(expression, "()");
 
-        assert_ok!(expression, "(true)", Expr::Bool(true));
-        assert_ok!(expression, "(1)", Expr::Num(1.0));
+        assert_ok!(expression, "(true)", bool!(true));
+        assert_ok!(expression, "(1)", num!(1.0));
 
         assert_ok!(
             expression,
             "true && false || true",
-            Expr::Or(
-                Box::new(Expr::And(
-                    Box::new(Expr::Bool(true)),
-                    Box::new(Expr::Bool(false)),
-                )),
-                Box::new(Expr::Bool(true)),
-            )
+            or!(and!(bool!(true), bool!(false)), bool!(true))
         );
 
         assert_ok!(
             expression,
             "true || false && true",
-            Expr::Or(
-                Box::new(Expr::Bool(true)),
-                Box::new(Expr::And(
-                    Box::new(Expr::Bool(false)),
-                    Box::new(Expr::Bool(true)),
-                )),
-            )
+            or!(bool!(true), and!(bool!(false), bool!(true)))
         );
 
         assert_ok!(
             expression,
             "1 + 2 * 3 - 4",
-            Expr::Sub(
-                Box::new(Expr::Add(
-                    Box::new(Expr::Num(1.0)),
-                    Box::new(Expr::Mul(
-                        Box::new(Expr::Num(2.0)),
-                        Box::new(Expr::Num(3.0)),
-                    )),
-                )),
-                Box::new(Expr::Num(4.0)),
-            )
+            sub!(add!(num!(1.0), mul!(num!(2.0), num!(3.0))), num!(4.0))
         );
 
         assert_ok!(
             expression,
             "(1 + 2) * (3 - 4)",
-            Expr::Mul(
-                Box::new(Expr::Add(
-                    Box::new(Expr::Num(1.0)),
-                    Box::new(Expr::Num(2.0)),
-                )),
-                Box::new(Expr::Sub(
-                    Box::new(Expr::Num(3.0)),
-                    Box::new(Expr::Num(4.0)),
-                )),
-            )
+            mul!(add!(num!(1.0), num!(2.0)), sub!(num!(3.0), num!(4.0)))
         );
 
         assert_ok!(
             expression,
             "1 + 2 <= -4 == false || !true",
-            Expr::Or(
-                Box::new(Expr::Eq(
-                    Box::new(Expr::Lte(
-                        Box::new(Expr::Add(
-                            Box::new(Expr::Num(1.0)),
-                            Box::new(Expr::Num(2.0)),
-                        )),
-                        Box::new(Expr::Neg(Box::new(Expr::Num(4.0)))),
-                    )),
-                    Box::new(Expr::Bool(false)),
-                )),
-                Box::new(Expr::Not(Box::new(Expr::Bool(true)))),
+            or!(
+                eq!(
+                    lte!(add!(num!(1.0), num!(2.0)), neg!(num!(4.0))),
+                    bool!(false)
+                ),
+                not!(bool!(true))
             )
         );
     }
 
     #[test]
     fn test_if_statement() {
-        assert_ok!(
-            expression,
-            "if(true, 1)",
-            Expr::If(Box::new(Expr::Bool(true)), Box::new(Expr::Num(1.0)), None,)
-        );
+        assert_ok!(expression, "if(true, 1)", iff!(bool!(true), num!(1.0)));
 
         assert_ok!(
             expression,
             "if(true, 1, 2)",
-            Expr::If(
-                Box::new(Expr::Bool(true)),
-                Box::new(Expr::Num(1.0)),
-                Some(Box::new(Expr::Num(2.0))),
-            )
+            iff!(bool!(true), num!(1.0), num!(2.0))
         );
     }
 
@@ -317,23 +262,9 @@ mod test {
             declaration,
             "foo = 1\nbar = 2\nfoo + bar == 3",
             vec![
-                Decl::Ass {
-                    name: "foo".into(),
-                    expr: Expr::Num(1.0)
-                },
-                Decl::Ass {
-                    name: "bar".into(),
-                    expr: Expr::Num(2.0)
-                },
-                Decl::Stm {
-                    expr: Expr::Eq(
-                        Box::new(Expr::Add(
-                            Box::new(Expr::Ident("foo".into())),
-                            Box::new(Expr::Ident("bar".into())),
-                        )),
-                        Box::new(Expr::Num(3.0)),
-                    )
-                }
+                ass!(foo, num!(1.0)),
+                ass!(bar, num!(2.0)),
+                stm!(eq!(add!(ident!(foo), ident!(bar)), num!(3.0))),
             ]
         );
 
@@ -341,17 +272,8 @@ mod test {
             declaration,
             "add a b = a + b\nadd(1, 2)",
             vec![
-                Decl::Fun {
-                    name: "add".into(),
-                    args: vec!["a".into(), "b".into()],
-                    body: Expr::Add(
-                        Box::new(Expr::Ident("a".into())),
-                        Box::new(Expr::Ident("b".into())),
-                    )
-                },
-                Decl::Stm {
-                    expr: Expr::Call("add".into(), vec![Expr::Num(1.0), Expr::Num(2.0)],)
-                }
+                fun!(add, [a, b], add!(ident!(a), ident!(b))),
+                stm!(call!(add, num!(1.0), num!(2.0))),
             ]
         );
     }
