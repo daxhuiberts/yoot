@@ -4,20 +4,22 @@ use chumsky::prelude::*;
 
 fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clone {
     recursive(|expr| {
-        let nil = just("nil").map(|_| Expr::Nil);
+        let nil = just("nil").map(|_| Lit::Nil);
 
         let boolean = just("true")
             .to(true)
             .or(just("false").to(false))
-            .map(Expr::Bool);
+            .map(Lit::Bool);
 
-        let number = text::int(10).from_str().unwrapped().map(Expr::Num);
+        let number = text::int(10).from_str().unwrapped().map(Lit::Num);
 
         let string = just("\"")
             .ignore_then(none_of("\"").repeated())
             .then_ignore(just("\""))
             .collect::<String>()
-            .map(Expr::Str);
+            .map(Lit::Str);
+
+        let literal = nil.or(boolean).or(number).or(string).map(Expr::Lit);
 
         let if_ = just("if")
             .ignore_then(
@@ -43,10 +45,7 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
 
         let subexpression = expr.delimited_by(just('('), just(')'));
 
-        let primary = nil
-            .or(boolean)
-            .or(number)
-            .or(string)
+        let primary = literal
             .or(if_)
             .or(call)
             .or(identifier)
@@ -54,10 +53,10 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
             .boxed();
 
         let unary = just('-')
-            .to(Expr::Neg as fn(_) -> _)
-            .or(just('!').to(Expr::Not as fn(_) -> _))
+            .to(UnOp::Neg)
+            .or(just('!').to(UnOp::Not))
             .then(primary.clone())
-            .map(|(unary, primary)| unary(Box::new(primary)))
+            .map(|(unary, primary)| Expr::UnOp(unary, Box::new(primary)))
             .or(primary);
 
         let op = |c| just(c).delimited_by(just(' '), just(' '));
@@ -66,52 +65,47 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
             .clone()
             .then(
                 op("*")
-                    .to(Expr::Mul as fn(_, _) -> _)
-                    .or(op("/").to(Expr::Div as fn(_, _) -> _))
+                    .to(BinOp::Mul)
+                    .or(op("/").to(BinOp::Div))
                     .then(unary)
                     .repeated(),
             )
-            .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)));
+            .foldl(|lhs, (op, rhs)| Expr::BinOp(op, Box::new(lhs), Box::new(rhs)));
 
         let term = factor
             .clone()
             .then(
                 op("+")
-                    .to(Expr::Add as fn(_, _) -> _)
-                    .or(op("-").to(Expr::Sub as fn(_, _) -> _))
+                    .to(BinOp::Add)
+                    .or(op("-").to(BinOp::Sub))
                     .then(factor)
                     .repeated(),
             )
-            .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)));
+            .foldl(|lhs, (op, rhs)| Expr::BinOp(op, Box::new(lhs), Box::new(rhs)));
 
         let comp = term
             .clone()
             .then(
                 op(">=")
-                    .to(Expr::Gte as fn(_, _) -> _)
-                    .or(op(">").to(Expr::Gt as fn(_, _) -> _))
-                    .or(op("<").to(Expr::Lt as fn(_, _) -> _))
-                    .or(op("<=").to(Expr::Lte as fn(_, _) -> _))
-                    .or(op("==").to(Expr::Eq as fn(_, _) -> _))
-                    .or(op("!=").to(Expr::Neq as fn(_, _) -> _))
+                    .to(BinOp::Gte)
+                    .or(op(">").to(BinOp::Gt))
+                    .or(op("<").to(BinOp::Lt))
+                    .or(op("<=").to(BinOp::Lte))
+                    .or(op("==").to(BinOp::Eq))
+                    .or(op("!=").to(BinOp::Neq))
                     .then(term)
                     .repeated(),
             )
-            .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)));
+            .foldl(|lhs, (op, rhs)| Expr::BinOp(op, Box::new(lhs), Box::new(rhs)));
 
         let and = comp
             .clone()
-            .then(
-                op("&&")
-                    .to(Expr::And as fn(_, _) -> _)
-                    .then(comp)
-                    .repeated(),
-            )
-            .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)));
+            .then(op("&&").to(BinOp::And).then(comp).repeated())
+            .foldl(|lhs, (op, rhs)| Expr::BinOp(op, Box::new(lhs), Box::new(rhs)));
 
         and.clone()
-            .then(op("||").to(Expr::Or as fn(_, _) -> _).then(and).repeated())
-            .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)))
+            .then(op("||").to(BinOp::Or).then(and).repeated())
+            .foldl(|lhs, (op, rhs)| Expr::BinOp(op, Box::new(lhs), Box::new(rhs)))
     })
 }
 

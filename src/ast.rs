@@ -1,32 +1,40 @@
 #[derive(Clone, Debug, PartialEq)]
-pub enum Expr {
-    // literals
+pub enum Lit {
     Nil,
     Bool(bool),
     Num(f64),
     Str(String),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum UnOp {
+    Neg,
+    Not,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum BinOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Eq,
+    Neq,
+    Gt,
+    Gte,
+    Lt,
+    Lte,
+    And,
+    Or,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Expr {
+    Lit(Lit),
     Ident(String),
-
-    // unary operators
-    Neg(Box<Expr>),
-    Not(Box<Expr>),
-
-    // binary operators
-    Add(Box<Expr>, Box<Expr>),
-    Sub(Box<Expr>, Box<Expr>),
-    Mul(Box<Expr>, Box<Expr>),
-    Div(Box<Expr>, Box<Expr>),
-    Eq(Box<Expr>, Box<Expr>),
-    Neq(Box<Expr>, Box<Expr>),
-    Gt(Box<Expr>, Box<Expr>),
-    Gte(Box<Expr>, Box<Expr>),
-    Lt(Box<Expr>, Box<Expr>),
-    Lte(Box<Expr>, Box<Expr>),
-    And(Box<Expr>, Box<Expr>),
-    Or(Box<Expr>, Box<Expr>),
-
+    UnOp(UnOp, Box<Expr>),
+    BinOp(BinOp, Box<Expr>, Box<Expr>),
     If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
-
     Call(String, Vec<Expr>),
 }
 
@@ -71,25 +79,25 @@ pub mod macros {
 
     pubmacro! { nil,
         () => {
-            Expr::Nil
+            Expr::Lit(Lit::Nil)
         };
     }
 
     pubmacro! { bool,
         ($value:literal) => {
-            Expr::Bool($value)
+            Expr::Lit(Lit::Bool($value))
         };
     }
 
     pubmacro! { num,
         ($value:literal) => {
-            Expr::Num($value)
+            Expr::Lit(Lit::Num($value))
         };
     }
 
     pubmacro! { str,
         ($value:literal) => {
-            Expr::Str($value.to_string())
+            Expr::Lit(Lit::Str($value.to_string()))
         };
     }
 
@@ -103,7 +111,7 @@ pub mod macros {
         ($unop:ident, $macro_name:ident) => {
             pubmacro! { $macro_name,
                 ($expr:expr) => {
-                    Expr::$unop(Box::new($expr))
+                    Expr::UnOp(UnOp::$unop, Box::new($expr))
                 };
             }
         };
@@ -116,7 +124,7 @@ pub mod macros {
         ($binop:ident, $macro_name:ident) => {
             pubmacro! { $macro_name,
                 ($left:expr, $right:expr) => {
-                    Expr::$binop(Box::new($left), Box::new($right))
+                    Expr::BinOp(BinOp::$binop, Box::new($left), Box::new($right))
                 };
             }
         };

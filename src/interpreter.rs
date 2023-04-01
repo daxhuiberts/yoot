@@ -68,10 +68,10 @@ impl<'a> Interpreter<'a> {
 
 fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
     match expr {
-        Expr::Nil => Ok(Value::Nil),
-        Expr::Bool(val) => Ok(Value::Bool(*val)),
-        Expr::Num(val) => Ok(Value::Num(*val)),
-        Expr::Str(val) => Ok(Value::Str(val.clone())),
+        Expr::Lit(Lit::Nil) => Ok(Value::Nil),
+        Expr::Lit(Lit::Bool(val)) => Ok(Value::Bool(*val)),
+        Expr::Lit(Lit::Num(val)) => Ok(Value::Num(*val)),
+        Expr::Lit(Lit::Str(val)) => Ok(Value::Str(val.clone())),
 
         Expr::Ident(name) => {
             if let Some(Var { kind, .. }) = vars.iter().rev().find(|var| var.name == *name) {
@@ -85,7 +85,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::Neg(expr) => {
+        Expr::UnOp(UnOp::Neg, expr) => {
             let val = eval(expr, vars)?;
             if let Value::Num(val) = val {
                 Ok(Value::Num(-val))
@@ -94,7 +94,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::Not(expr) => {
+        Expr::UnOp(UnOp::Not, expr) => {
             let val = eval(expr, vars)?;
             if let Value::Bool(val) = val {
                 Ok(Value::Bool(!val))
@@ -103,7 +103,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::Add(left, right) => {
+        Expr::BinOp(BinOp::Add, left, right) => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -114,7 +114,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::Sub(left, right) => {
+        Expr::BinOp(BinOp::Sub, left, right) => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -125,7 +125,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::Mul(left, right) => {
+        Expr::BinOp(BinOp::Mul, left, right) => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -136,7 +136,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::Div(left, right) => {
+        Expr::BinOp(BinOp::Div, left, right) => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -147,7 +147,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::Eq(left, right) => {
+        Expr::BinOp(BinOp::Eq, left, right) => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -161,7 +161,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::Neq(left, right) => {
+        Expr::BinOp(BinOp::Neq, left, right) => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -175,7 +175,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::Lt(left, right) => {
+        Expr::BinOp(BinOp::Lt, left, right) => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -187,7 +187,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::Lte(left, right) => {
+        Expr::BinOp(BinOp::Lte, left, right) => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -199,7 +199,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::Gt(left, right) => {
+        Expr::BinOp(BinOp::Gt, left, right) => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -211,7 +211,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::Gte(left, right) => {
+        Expr::BinOp(BinOp::Gte, left, right) => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -223,7 +223,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::And(left, right) => {
+        Expr::BinOp(BinOp::And, left, right) => {
             let left_val = eval(left, vars)?;
             if let Value::Bool(left_val) = left_val {
                 if left_val {
@@ -245,7 +245,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::Or(left, right) => {
+        Expr::BinOp(BinOp::Or, left, right) => {
             let left_val = eval(left, vars)?;
             if let Value::Bool(left_val) = left_val {
                 if left_val {
