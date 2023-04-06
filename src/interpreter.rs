@@ -1,6 +1,5 @@
 use super::ast::*;
-
-type Result<T> = std::result::Result<T, String>;
+use super::util::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {

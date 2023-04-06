@@ -69,13 +69,7 @@ impl Program {
 
 #[cfg(test)]
 pub mod macros {
-    macro_rules! pubmacro {
-        ($name:ident, $($tt:tt)*) => {
-            macro_rules! $name { $($tt)* }
-
-            pub(crate) use $name;
-        }
-    }
+    use crate::util::macros::pubmacro;
 
     pubmacro! { nil,
         () => {
