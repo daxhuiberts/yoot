@@ -7,13 +7,13 @@ pub enum Lit {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum UnOp {
+pub enum UnOpKind {
     Neg,
     Not,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum BinOp {
+pub enum BinOpKind {
     Add,
     Sub,
     Mul,
@@ -32,8 +32,8 @@ pub enum BinOp {
 pub enum Expr {
     Lit(Lit),
     Ident(String),
-    UnOp(UnOp, Box<Expr>),
-    BinOp(BinOp, Box<Expr>, Box<Expr>),
+    UnOp(UnOpKind, Box<Expr>),
+    BinOp(BinOpKind, Box<Expr>, Box<Expr>),
     If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
     Call(String, Vec<Expr>),
 }
@@ -111,7 +111,7 @@ pub mod macros {
         ($unop:ident, $macro_name:ident) => {
             pubmacro! { $macro_name,
                 ($expr:expr) => {
-                    Expr::UnOp(UnOp::$unop, Box::new($expr))
+                    Expr::UnOp(UnOpKind::$unop, Box::new($expr))
                 };
             }
         };
@@ -124,7 +124,7 @@ pub mod macros {
         ($binop:ident, $macro_name:ident) => {
             pubmacro! { $macro_name,
                 ($left:expr, $right:expr) => {
-                    Expr::BinOp(BinOp::$binop, Box::new($left), Box::new($right))
+                    Expr::BinOp(BinOpKind::$binop, Box::new($left), Box::new($right))
                 };
             }
         };

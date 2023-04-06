@@ -53,8 +53,8 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
             .boxed();
 
         let unary = just('-')
-            .to(UnOp::Neg)
-            .or(just('!').to(UnOp::Not))
+            .to(UnOpKind::Neg)
+            .or(just('!').to(UnOpKind::Not))
             .then(primary.clone())
             .map(|(unary, primary)| Expr::UnOp(unary, Box::new(primary)))
             .or(primary);
@@ -65,8 +65,8 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
             .clone()
             .then(
                 op("*")
-                    .to(BinOp::Mul)
-                    .or(op("/").to(BinOp::Div))
+                    .to(BinOpKind::Mul)
+                    .or(op("/").to(BinOpKind::Div))
                     .then(unary)
                     .repeated(),
             )
@@ -76,8 +76,8 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
             .clone()
             .then(
                 op("+")
-                    .to(BinOp::Add)
-                    .or(op("-").to(BinOp::Sub))
+                    .to(BinOpKind::Add)
+                    .or(op("-").to(BinOpKind::Sub))
                     .then(factor)
                     .repeated(),
             )
@@ -87,12 +87,12 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
             .clone()
             .then(
                 op(">=")
-                    .to(BinOp::Gte)
-                    .or(op(">").to(BinOp::Gt))
-                    .or(op("<").to(BinOp::Lt))
-                    .or(op("<=").to(BinOp::Lte))
-                    .or(op("==").to(BinOp::Eq))
-                    .or(op("!=").to(BinOp::Neq))
+                    .to(BinOpKind::Gte)
+                    .or(op(">").to(BinOpKind::Gt))
+                    .or(op("<").to(BinOpKind::Lt))
+                    .or(op("<=").to(BinOpKind::Lte))
+                    .or(op("==").to(BinOpKind::Eq))
+                    .or(op("!=").to(BinOpKind::Neq))
                     .then(term)
                     .repeated(),
             )
@@ -100,11 +100,11 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
 
         let and = comp
             .clone()
-            .then(op("&&").to(BinOp::And).then(comp).repeated())
+            .then(op("&&").to(BinOpKind::And).then(comp).repeated())
             .foldl(|lhs, (op, rhs)| Expr::BinOp(op, Box::new(lhs), Box::new(rhs)));
 
         and.clone()
-            .then(op("||").to(BinOp::Or).then(and).repeated())
+            .then(op("||").to(BinOpKind::Or).then(and).repeated())
             .foldl(|lhs, (op, rhs)| Expr::BinOp(op, Box::new(lhs), Box::new(rhs)))
     })
 }
