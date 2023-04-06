@@ -181,26 +181,26 @@ mod test {
         assert_ok!(expression, "foo", ident!(foo));
         assert_ok!(expression, "bar", ident!(bar));
 
-        assert_ok!(expression, "1", num!(1.0));
-        assert_ok!(expression, "10", num!(10.0));
+        assert_ok!(expression, "1", num!(1));
+        assert_ok!(expression, "10", num!(10));
 
         assert_ok!(expression, "\"hello\"", str!("hello"));
         assert_ok!(expression, "\"world\"", str!("world"));
         assert_ok!(expression, "\"hello world\"", str!("hello world"));
 
         assert_ok!(expression, "!true", not!(bool!(true)));
-        assert_ok!(expression, "-1", neg!(num!(1.0)));
+        assert_ok!(expression, "-1", neg!(num!(1)));
 
         assert_err!(expression, "1+2");
 
-        assert_ok!(expression, "1 + 2", add!(num!(1.0), num!(2.0)));
+        assert_ok!(expression, "1 + 2", add!(num!(1), num!(2)));
 
-        assert_ok!(expression, "2 - 1", sub!(num!(2.0), num!(1.0)));
+        assert_ok!(expression, "2 - 1", sub!(num!(2), num!(1)));
 
         assert_err!(expression, "()");
 
         assert_ok!(expression, "(true)", bool!(true));
-        assert_ok!(expression, "(1)", num!(1.0));
+        assert_ok!(expression, "(1)", num!(1));
 
         assert_ok!(
             expression,
@@ -217,23 +217,20 @@ mod test {
         assert_ok!(
             expression,
             "1 + 2 * 3 - 4",
-            sub!(add!(num!(1.0), mul!(num!(2.0), num!(3.0))), num!(4.0))
+            sub!(add!(num!(1), mul!(num!(2), num!(3))), num!(4))
         );
 
         assert_ok!(
             expression,
             "(1 + 2) * (3 - 4)",
-            mul!(add!(num!(1.0), num!(2.0)), sub!(num!(3.0), num!(4.0)))
+            mul!(add!(num!(1), num!(2)), sub!(num!(3), num!(4)))
         );
 
         assert_ok!(
             expression,
             "1 + 2 <= -4 == false || !true",
             or!(
-                eq!(
-                    lte!(add!(num!(1.0), num!(2.0)), neg!(num!(4.0))),
-                    bool!(false)
-                ),
+                eq!(lte!(add!(num!(1), num!(2)), neg!(num!(4))), bool!(false)),
                 not!(bool!(true))
             )
         );
@@ -241,12 +238,12 @@ mod test {
 
     #[test]
     fn test_if_statement() {
-        assert_ok!(expression, "if(true, 1)", iff!(bool!(true), num!(1.0)));
+        assert_ok!(expression, "if(true, 1)", iff!(bool!(true), num!(1)));
 
         assert_ok!(
             expression,
             "if(true, 1, 2)",
-            iff!(bool!(true), num!(1.0), num!(2.0))
+            iff!(bool!(true), num!(1), num!(2))
         );
     }
 
@@ -256,9 +253,9 @@ mod test {
             declaration,
             "foo = 1\nbar = 2\nfoo + bar == 3",
             vec![
-                ass!(foo, num!(1.0)),
-                ass!(bar, num!(2.0)),
-                stm!(eq!(add!(ident!(foo), ident!(bar)), num!(3.0))),
+                ass!(foo, num!(1)),
+                ass!(bar, num!(2)),
+                stm!(eq!(add!(ident!(foo), ident!(bar)), num!(3))),
             ]
         );
 
@@ -267,7 +264,7 @@ mod test {
             "add a b = a + b\nadd(1, 2)",
             vec![
                 fun!(add, [a, b], add!(ident!(a), ident!(b))),
-                stm!(call!(add, num!(1.0), num!(2.0))),
+                stm!(call!(add, num!(1), num!(2))),
             ]
         );
     }

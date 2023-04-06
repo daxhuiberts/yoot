@@ -2,7 +2,7 @@
 pub enum Lit {
     Nil,
     Bool(bool),
-    Num(f64),
+    Num(i64),
     Str(String),
 }
 

@@ -6,7 +6,7 @@ type Result<T> = std::result::Result<T, String>;
 pub enum Value {
     Nil,
     Bool(bool),
-    Num(f64),
+    Num(i64),
     Str(String),
 }
 
@@ -338,8 +338,8 @@ mod test {
     #[test]
     fn test_eval() {
         assert_eq!(
-            eval(&add!(num!(1.0), bool!(true)), &Vec::new()),
-            Err("expect num on both sides: Num(1.0) + Bool(true)".into())
+            eval(&add!(num!(1), bool!(true)), &Vec::new()),
+            Err("expect num on both sides: Num(1) + Bool(true)".into())
         );
 
         assert_eq!(
@@ -347,7 +347,7 @@ mod test {
             Ok(Value::Bool(false))
         );
 
-        assert_eq!(eval(&neg!(num!(3.0)), &Vec::new()), Ok(Value::Num(-3.0)));
+        assert_eq!(eval(&neg!(num!(3)), &Vec::new()), Ok(Value::Num(-3)));
 
         assert_eq!(
             eval(
@@ -359,27 +359,24 @@ mod test {
 
         assert_eq!(
             eval(
-                &sub!(add!(num!(1.0), mul!(num!(2.0), num!(3.0))), num!(4.0)),
+                &sub!(add!(num!(1), mul!(num!(2), num!(3))), num!(4)),
                 &Vec::new()
             ),
-            Ok(Value::Num(3.0))
+            Ok(Value::Num(3))
         );
 
         assert_eq!(
             eval(
-                &mul!(add!(num!(1.0), num!(2.0)), sub!(num!(3.0), num!(4.0))),
+                &mul!(add!(num!(1), num!(2)), sub!(num!(3), num!(4))),
                 &Vec::new()
             ),
-            Ok(Value::Num(-3.0))
+            Ok(Value::Num(-3))
         );
 
         assert_eq!(
             eval(
                 &or!(
-                    eq!(
-                        lte!(add!(num!(1.0), num!(2.0)), neg!(num!(4.0))),
-                        bool!(false)
-                    ),
+                    eq!(lte!(add!(num!(1), num!(2)), neg!(num!(4))), bool!(false)),
                     not!(bool!(true))
                 ),
                 &Vec::new()
@@ -391,27 +388,27 @@ mod test {
     #[test]
     fn test_execute_if_statement() {
         assert_eq!(
-            eval(&iff!(bool!(true), num!(1.0), num!(2.0)), &Vec::new()),
-            Ok(Value::Num(1.0))
+            eval(&iff!(bool!(true), num!(1), num!(2)), &Vec::new()),
+            Ok(Value::Num(1))
         );
 
         assert_eq!(
-            eval(&iff!(bool!(false), num!(1.0), num!(2.0)), &Vec::new()),
-            Ok(Value::Num(2.0))
+            eval(&iff!(bool!(false), num!(1), num!(2)), &Vec::new()),
+            Ok(Value::Num(2))
         );
 
         assert_eq!(
-            eval(&iff!(bool!(true), num!(1.0)), &Vec::new()),
-            Ok(Value::Num(1.0))
+            eval(&iff!(bool!(true), num!(1)), &Vec::new()),
+            Ok(Value::Num(1))
         );
 
         assert_eq!(
-            eval(&iff!(bool!(false), num!(1.0)), &Vec::new()),
+            eval(&iff!(bool!(false), num!(1)), &Vec::new()),
             Ok(Value::Nil)
         );
 
         assert_eq!(
-            eval(&iff!(nil!(), num!(1.0)), &Vec::new()),
+            eval(&iff!(nil!(), num!(1)), &Vec::new()),
             Err("expect bool as condition for if statement: Nil".into())
         );
     }
@@ -419,9 +416,9 @@ mod test {
     #[test]
     fn test_execute_assignments() {
         let decls = vec![
-            ass!(foo, num!(1.0)),
-            ass!(bar, num!(2.0)),
-            stm!(eq!(add!(ident!(foo), ident!(bar)), num!(3.0))),
+            ass!(foo, num!(1)),
+            ass!(bar, num!(2)),
+            stm!(eq!(add!(ident!(foo), ident!(bar)), num!(3))),
         ];
 
         let program = Program::new(decls);
@@ -434,12 +431,12 @@ mod test {
     fn test_execute_function_call() {
         let decls = vec![
             fun!(add, [a, b], add!(ident!(a), ident!(b))),
-            stm!(call!(add, num!(1.0), num!(2.0))),
+            stm!(call!(add, num!(1), num!(2))),
         ];
 
         let program = Program::new(decls);
         let mut interpreter = Interpreter::new(&program);
 
-        assert_eq!(interpreter.execute(), Ok(Value::Num(3.0)));
+        assert_eq!(interpreter.execute(), Ok(Value::Num(3)));
     }
 }
