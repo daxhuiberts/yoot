@@ -2,8 +2,7 @@ use super::ast::*;
 
 use chumsky::prelude::*;
 
-fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clone {
-    recursive(|expr| {
+fn literal() -> impl chumsky::Parser<char, Lit, Error = Simple<char>> + Clone {
         let nil = just("nil").map(|_| Lit::Nil);
 
         let boolean = just("true")
@@ -19,7 +18,12 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
             .collect::<String>()
             .map(Lit::Str);
 
-        let literal = nil.or(boolean).or(number).or(string).map(Expr::Lit);
+    nil.or(boolean).or(number).or(string)
+}
+
+fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clone {
+    recursive(|expr| {
+        let literal = literal().map(Expr::Lit);
 
         let if_ = just("if")
             .ignore_then(
