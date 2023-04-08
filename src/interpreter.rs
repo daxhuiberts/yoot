@@ -42,7 +42,7 @@ impl<'a> Interpreter<'a> {
                 Decl::Ass { name, expr } => {
                     let value = eval(expr, &self.vars)?;
                     self.vars.push(Var {
-                        name: name.clone(),
+                        name: name.0.clone(),
                         kind: Kind::Val { value },
                     });
                     Value::Nil
@@ -51,7 +51,7 @@ impl<'a> Interpreter<'a> {
                     self.vars.push(Var {
                         name: name.clone(),
                         kind: Kind::Fun {
-                            args: args.clone(),
+                            args: args.iter().map(|arg| arg.0.clone()).collect(),
                             body: body.clone(),
                         },
                     });

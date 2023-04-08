@@ -3,20 +3,20 @@ use super::ast::*;
 use chumsky::prelude::*;
 
 fn literal() -> impl chumsky::Parser<char, Lit, Error = Simple<char>> + Clone {
-        let nil = just("nil").map(|_| Lit::Nil);
+    let nil = just("nil").map(|_| Lit::Nil);
 
-        let boolean = just("true")
-            .to(true)
-            .or(just("false").to(false))
-            .map(Lit::Bool);
+    let boolean = just("true")
+        .to(true)
+        .or(just("false").to(false))
+        .map(Lit::Bool);
 
-        let number = text::int(10).from_str().unwrapped().map(Lit::Num);
+    let number = text::int(10).from_str().unwrapped().map(Lit::Num);
 
-        let string = just("\"")
-            .ignore_then(none_of("\"").repeated())
-            .then_ignore(just("\""))
-            .collect::<String>()
-            .map(Lit::Str);
+    let string = just("\"")
+        .ignore_then(none_of("\"").repeated())
+        .then_ignore(just("\""))
+        .collect::<String>()
+        .map(Lit::Str);
 
     nil.or(boolean).or(number).or(string)
 }
@@ -117,13 +117,18 @@ fn declaration() -> impl chumsky::Parser<char, Vec<Decl>, Error = Simple<char>> 
     let expression = expression();
 
     let assignment = text::ident()
+        .then(just(":").ignore_then(text::ident()).or_not())
         .then_ignore(just(" = "))
         .then(expression.clone())
         .map(|(name, expr)| Decl::Ass { name, expr });
 
     let function = text::ident()
         .then_ignore(just(" "))
-        .then(text::ident().separated_by(just(" ")))
+        .then(
+            text::ident()
+                .then(just(":").ignore_then(text::ident()).or_not())
+                .separated_by(just(" ")),
+        )
         .then_ignore(just(" = "))
         .then(expression.clone())
         .map(|((name, args), body)| Decl::Fun { name, args, body });

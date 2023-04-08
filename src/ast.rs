@@ -44,12 +44,12 @@ pub enum Decl {
         expr: Expr,
     },
     Ass {
-        name: String,
+        name: (String, Option<String>),
         expr: Expr,
     },
     Fun {
         name: String,
-        args: Vec<String>,
+        args: Vec<(String, Option<String>)>,
         body: Expr,
     },
 }
@@ -161,7 +161,7 @@ pub mod macros {
     pubmacro! { ass,
         ($name:ident, $expr:expr) => {
             Decl::Ass {
-                name: stringify!($name).to_string(),
+                name: (stringify!($name).to_string(), None),
                 expr: $expr,
             }
         };
@@ -171,7 +171,7 @@ pub mod macros {
         ($name:ident, [ $($args:ident),* ], $body:expr) => {
             Decl::Fun {
                 name: stringify!($name).to_string(),
-                args: vec![$(stringify!($args).to_string()),*],
+                args: vec![$((stringify!($args).to_string(), None)),*],
                 body: $body,
             }
         }
