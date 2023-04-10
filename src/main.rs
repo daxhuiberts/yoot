@@ -6,6 +6,7 @@ use std::error::Error;
 mod ast;
 mod interpreter;
 mod parser;
+mod tokenizer;
 mod util;
 
 fn main() -> Result<(), Box<dyn Error>> {
