@@ -171,9 +171,21 @@ pub mod macros {
         ($name:ident, [ $($args:ident),* ], $body:expr) => {
             Decl::Fun {
                 name: stringify!($name).to_string(),
-                args: vec![$((stringify!($args).to_string(), None)),*],
+                args: vec![$(typed_arg!($args)),*],
+                body: $body,
+            }
+        };
+        ($name:ident, [ $($args:ident:$types:ident),* ], $body:expr) => {
+            Decl::Fun {
+                name: stringify!($name).to_string(),
+                args: vec![$(typed_arg!($args:$types)),*],
                 body: $body,
             }
         }
+    }
+
+    pubmacro! { typed_arg,
+        ($name:ident:$ty:ident) => { (stringify!($name).to_string(), Some(stringify!($ty).to_string())) };
+        ($name:ident) => { (stringify!($name).to_string(), None) }
     }
 }
