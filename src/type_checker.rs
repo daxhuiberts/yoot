@@ -17,7 +17,7 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
         match decl {
             Decl::Stm { expr } => {
                 let expr = check_expr(expr, &env)?;
-                let ty = expr.get_ty().clone();
+                let ty = expr.ty.clone();
                 typed_decls.push(TypedDecl::Stm { expr, ty });
             }
             Decl::Ass {
@@ -29,7 +29,7 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
                     .map(|exp_ty| TySimple::from_str(&exp_ty))
                     .transpose()?;
                 let expr = check_expr(expr, &env)?;
-                let ty = expr.get_ty().clone();
+                let ty = expr.ty.clone();
                 if expected_type.clone().map_or(false, |ex| ex != ty) {
                     return Err(format!("expected {expected_type:?}, got {ty:?}"));
                 }
@@ -57,7 +57,7 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
                     .zip(types.iter().cloned().map(Ty::Simple))
                     .collect::<HashMap<_, _>>();
                 let expr = check_expr(body, &local_env)?;
-                let ty = expr.get_ty().clone();
+                let ty = expr.ty.clone();
                 let ty_function = TyFunction {
                     args: types,
                     ret: ty,
@@ -79,22 +79,26 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
 
 fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
     match expr {
-        Expr::Lit(Lit::Nil) => Ok(TypedExpr::Lit {
-            lit: Lit::Nil,
+        Expr::Lit(Lit::Nil) => Ok(TypedExpr {
+            kind: ExprKind::Lit { lit: Lit::Nil },
             ty: TySimple::Nil,
         }),
-        Expr::Lit(Lit::Bool(val)) => Ok(TypedExpr::Lit {
-            lit: Lit::Bool(*val),
+        Expr::Lit(Lit::Bool(val)) => Ok(TypedExpr {
+            kind: ExprKind::Lit {
+                lit: Lit::Bool(*val),
+            },
             ty: TySimple::Bool,
         }),
-        Expr::Lit(Lit::Num(val)) => Ok(TypedExpr::Lit {
-            lit: Lit::Num(*val),
+        Expr::Lit(Lit::Num(val)) => Ok(TypedExpr {
+            kind: ExprKind::Lit {
+                lit: Lit::Num(*val),
+            },
             ty: TySimple::Num,
         }),
         Expr::Lit(Lit::Str(_)) => Err("str not supported".into()),
         Expr::Ident(name) => match env.get(name) {
-            Some(Ty::Simple(ty)) => Ok(TypedExpr::Ident {
-                name: name.clone(),
+            Some(Ty::Simple(ty)) => Ok(TypedExpr {
+                kind: ExprKind::Ident { name: name.clone() },
                 ty: ty.clone(),
             }),
             Some(Ty::Function(..)) => Err(format!("{name} is not a value, but a function")),
@@ -102,20 +106,24 @@ fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
         },
         Expr::UnOp(kind, expr) => {
             let expr = check_expr(expr, env)?;
-            let ty = expr.get_ty();
+            let ty = expr.ty.clone();
             match kind {
                 UnOpKind::Not => match ty {
-                    TySimple::Bool => Ok(TypedExpr::UnOp {
-                        kind: kind.clone(),
-                        expr: Box::new(expr),
+                    TySimple::Bool => Ok(TypedExpr {
+                        kind: ExprKind::UnOp {
+                            kind: kind.clone(),
+                            expr: Box::new(expr),
+                        },
                         ty: TySimple::Bool,
                     }),
                     _ => Err(format!("can't not {ty:?}")),
                 },
                 UnOpKind::Neg => match ty {
-                    TySimple::Num => Ok(TypedExpr::UnOp {
-                        kind: kind.clone(),
-                        expr: Box::new(expr),
+                    TySimple::Num => Ok(TypedExpr {
+                        kind: ExprKind::UnOp {
+                            kind: kind.clone(),
+                            expr: Box::new(expr),
+                        },
                         ty: TySimple::Num,
                     }),
                     _ => Err(format!("can't neg {ty:?}")),
@@ -126,7 +134,7 @@ fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
             let left = check_expr(left, env)?;
             let right = check_expr(right, env)?;
 
-            let (left_ty, right_ty) = (left.get_ty().clone(), right.get_ty().clone());
+            let (left_ty, right_ty) = (left.ty.clone(), right.ty.clone());
             if left_ty != right_ty {
                 return Err(format!(
                     "expected same type on both sides: left: {left_ty:?}; right: {right_ty:?}"
@@ -158,17 +166,19 @@ fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
                 }
             };
 
-            Ok(TypedExpr::BinOp {
-                kind: kind.clone(),
-                left: Box::new(left),
-                right: Box::new(right),
+            Ok(TypedExpr {
+                kind: ExprKind::BinOp {
+                    kind: kind.clone(),
+                    left: Box::new(left),
+                    right: Box::new(right),
+                },
                 ty: ty.clone(),
             })
         }
         Expr::If(cond, then, else_) => {
             let cond = check_expr(cond, env)?;
             let then = check_expr(then, env)?;
-            let (cond_ty, then_ty) = (cond.get_ty().clone(), then.get_ty().clone());
+            let (cond_ty, then_ty) = (cond.ty.clone(), then.ty.clone());
             let else_ = else_
                 .as_ref()
                 .map(|else_| check_expr(else_, env))
@@ -178,21 +188,25 @@ fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
                 return Err("condition should be bool".to_string());
             }
 
-            let else_ty = else_.as_ref().map(|e| e.get_ty().clone());
+            let else_ty = else_.as_ref().map(|e| e.ty.clone());
             match (then_ty, else_ty, else_) {
-                (TySimple::Nil, None, _) => Ok(TypedExpr::If {
-                    cond: Box::new(cond),
-                    then: Box::new(then),
-                    else_: None,
+                (TySimple::Nil, None, _) => Ok(TypedExpr {
+                    kind: ExprKind::If {
+                        cond: Box::new(cond),
+                        then: Box::new(then),
+                        else_: None,
+                    },
                     ty: TySimple::Nil,
                 }),
                 (then_ty, None, _) => Err(format!(
                     "expect then branch to be of type nil: got {then_ty:?}"
                 )),
-                (then_ty, Some(else_ty), Some(else_)) if then_ty == else_ty => Ok(TypedExpr::If {
-                    cond: Box::new(cond),
-                    then: Box::new(then),
-                    else_: Some(Box::new(else_)),
+                (then_ty, Some(else_ty), Some(else_)) if then_ty == else_ty => Ok(TypedExpr {
+                    kind: ExprKind::If {
+                        cond: Box::new(cond),
+                        then: Box::new(then),
+                        else_: Some(Box::new(else_)),
+                    },
                     ty: then_ty.clone(),
                 }),
                 (then_ty, Some(else_ty), _) => Err(format!(
@@ -221,7 +235,7 @@ fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
                 .enumerate()
                 .map(|(index, (arg, expected_ty))| {
                     let expr = check_expr(arg, env)?;
-                    let provided_ty = expr.get_ty().clone();
+                    let provided_ty = expr.ty.clone();
                     if provided_ty != *expected_ty {
                         Err(format!(
                             "Expected {expected_ty:?} for argument {index}, got {provided_ty:?}"
@@ -232,9 +246,11 @@ fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
                 })
                 .collect::<Result<Vec<_>>>()?;
 
-            Ok(TypedExpr::Call {
-                name: name.clone(),
-                args,
+            Ok(TypedExpr {
+                kind: ExprKind::Call {
+                    name: name.clone(),
+                    args,
+                },
                 ty: function_ret_ty.clone(),
             })
         }

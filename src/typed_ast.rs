@@ -34,50 +34,37 @@ pub enum Ty {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum TypedExpr {
+pub struct TypedExpr {
+    pub kind: ExprKind,
+    pub ty: TySimple,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum ExprKind {
     Lit {
         lit: Lit,
-        ty: TySimple,
     },
     Ident {
         name: String,
-        ty: TySimple,
     },
     UnOp {
         kind: UnOpKind,
         expr: Box<TypedExpr>,
-        ty: TySimple,
     },
     BinOp {
         kind: BinOpKind,
         left: Box<TypedExpr>,
         right: Box<TypedExpr>,
-        ty: TySimple,
     },
     If {
         cond: Box<TypedExpr>,
         then: Box<TypedExpr>,
         else_: Option<Box<TypedExpr>>,
-        ty: TySimple,
     },
     Call {
         name: String,
         args: Vec<TypedExpr>,
-        ty: TySimple,
     },
-}
-
-impl TypedExpr {
-    pub fn get_ty(&self) -> &TySimple {
-        match self {
-            TypedExpr::Lit { ty, .. } => ty,
-            TypedExpr::Ident { ty, .. } => ty,
-            TypedExpr::UnOp { ty, .. } => ty,
-            TypedExpr::BinOp { ty, .. } => ty,
-            TypedExpr::If { ty, .. } => ty,
-            TypedExpr::Call { ty, .. } => ty,
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -114,7 +101,12 @@ pub mod macros {
 
     pubmacro! { tnil,
         () => {
-            TypedExpr::Lit { lit: Lit::Nil, ty: TySimple::Nil }
+            TypedExpr {
+                kind: ExprKind::Lit {
+                    lit: Lit::Nil,
+                },
+                ty: TySimple::Nil,
+            }
         };
     }
 
@@ -126,7 +118,12 @@ pub mod macros {
 
     pubmacro! { tnum,
         ($value:literal) => {
-            TypedExpr::Lit { lit: Lit::Num($value), ty: TySimple::Num }
+            TypedExpr {
+                kind: ExprKind::Lit {
+                    lit: Lit::Num($value),
+                },
+                ty: TySimple::Num,
+            }
         };
     }
 
@@ -138,7 +135,12 @@ pub mod macros {
 
     pubmacro! { tident,
         ($value:ident, $ty:ident) => {
-            TypedExpr::Ident { name: stringify!($value).to_string(), ty: TySimple::$ty }
+            TypedExpr {
+                kind: ExprKind::Ident {
+                    name: stringify!($value).to_string(),
+                },
+                ty: TySimple::$ty,
+            }
         };
     }
 
@@ -159,10 +161,12 @@ pub mod macros {
         ($binop:ident, $macro_name:ident) => {
             pubmacro! { $macro_name,
                 ($left:expr, $right:expr, $ty:ident) => {
-                    TypedExpr::BinOp {
-                        kind: BinOpKind::$binop,
-                        left: Box::new($left),
-                        right: Box::new($right),
+                    TypedExpr {
+                        kind: ExprKind::BinOp {
+                            kind: BinOpKind::$binop,
+                            left: Box::new($left),
+                            right: Box::new($right),
+                        },
                         ty: TySimple::$ty,
                     }
                 };
@@ -194,7 +198,13 @@ pub mod macros {
 
     pubmacro! { tcall,
         ($name:ident, $($args:expr),* ; $ty:ident) => {
-            TypedExpr::Call { name: stringify!($name).to_string(), args: vec![$($args),*], ty: TySimple::$ty }
+            TypedExpr {
+                kind: ExprKind::Call {
+                    name: stringify!($name).to_string(),
+                    args: vec![$($args),*],
+                },
+                ty: TySimple::$ty,
+            }
         }
     }
 
@@ -221,7 +231,7 @@ pub mod macros {
                 body: $body,
                 ty: TyFunction {
                     args: vec![$(TySimple::$ty_args),*],
-                    ret: TySimple::$ret
+                    ret: TySimple::$ret,
                 }
             }
         }
