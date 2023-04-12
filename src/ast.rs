@@ -1,5 +1,5 @@
 #[derive(Clone, Debug, PartialEq)]
-pub enum Lit {
+pub enum LitKind {
     Nil,
     Bool(bool),
     Num(i64),
@@ -29,13 +29,36 @@ pub enum BinOpKind {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Expr {
-    Lit(Lit),
-    Ident(String),
-    UnOp(UnOpKind, Box<Expr>),
-    BinOp(BinOpKind, Box<Expr>, Box<Expr>),
-    If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
-    Call(String, Vec<Expr>),
+pub enum ExprKind<T> {
+    Lit {
+        lit: LitKind,
+    },
+    Ident {
+        name: String,
+    },
+    UnOp {
+        kind: UnOpKind,
+        expr: Box<T>,
+    },
+    BinOp {
+        kind: BinOpKind,
+        left: Box<T>,
+        right: Box<T>,
+    },
+    If {
+        cond: Box<T>,
+        then: Box<T>,
+        else_: Option<Box<T>>,
+    },
+    Call {
+        name: String,
+        args: Vec<T>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Expr {
+    pub kind: ExprKind<Self>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -73,31 +96,51 @@ pub mod macros {
 
     pubmacro! { nil,
         () => {
-            Expr::Lit(Lit::Nil)
+            Expr {
+                kind: ExprKind::Lit {
+                    lit: LitKind::Nil,
+                }
+            }
         };
     }
 
     pubmacro! { bool,
         ($value:literal) => {
-            Expr::Lit(Lit::Bool($value))
+            Expr {
+                kind: ExprKind::Lit {
+                    lit: LitKind::Bool($value),
+                }
+            }
         };
     }
 
     pubmacro! { num,
         ($value:literal) => {
-            Expr::Lit(Lit::Num($value))
+            Expr {
+                kind: ExprKind::Lit {
+                    lit: LitKind::Num($value),
+                }
+            }
         };
     }
 
     pubmacro! { str,
         ($value:literal) => {
-            Expr::Lit(Lit::Str($value.to_string()))
+            Expr {
+                kind: ExprKind::Lit {
+                    lit: LitKind::Str($value.to_string()),
+                }
+            }
         };
     }
 
     pubmacro! { ident,
         ($value:ident) => {
-            Expr::Ident(stringify!($value).to_string())
+            Expr {
+                kind: ExprKind::Ident {
+                    name: stringify!($value).to_string(),
+                }
+            }
         };
     }
 
@@ -105,7 +148,12 @@ pub mod macros {
         ($unop:ident, $macro_name:ident) => {
             pubmacro! { $macro_name,
                 ($expr:expr) => {
-                    Expr::UnOp(UnOpKind::$unop, Box::new($expr))
+                    Expr {
+                        kind: ExprKind::UnOp {
+                            kind: UnOpKind::$unop,
+                            expr: Box::new($expr),
+                        }
+                    }
                 };
             }
         };
@@ -118,7 +166,13 @@ pub mod macros {
         ($binop:ident, $macro_name:ident) => {
             pubmacro! { $macro_name,
                 ($left:expr, $right:expr) => {
-                    Expr::BinOp(BinOpKind::$binop, Box::new($left), Box::new($right))
+                    Expr {
+                        kind: ExprKind::BinOp {
+                            kind: BinOpKind::$binop,
+                            left: Box::new($left),
+                            right: Box::new($right),
+                        }
+                    }
                 };
             }
         };
@@ -139,22 +193,41 @@ pub mod macros {
 
     pubmacro! { iff,
         ($expr:expr, $then:expr) => {
-            Expr::If(Box::new($expr), Box::new($then), None)
+            Expr {
+                kind: ExprKind::If {
+                    cond: Box::new($expr),
+                    then: Box::new($then),
+                    else_: None,
+                }
+            }
         };
         ($expr:expr, $then:expr, $else:expr) => {
-            Expr::If(Box::new($expr), Box::new($then), Some(Box::new($else)))
+            Expr {
+                kind: ExprKind::If {
+                    cond: Box::new($expr),
+                    then: Box::new($then),
+                    else_: Some(Box::new($else)),
+                }
+            }
         };
     }
 
     pubmacro! { call,
         ($name:ident, $($args:expr),*) => {
-            Expr::Call(stringify!($name).to_string(), vec![$($args),*])
+            Expr {
+                kind: ExprKind::Call {
+                    name: stringify!($name).to_string(),
+                    args: vec![$($args),*],
+                }
+            }
         }
     }
 
     pubmacro! { stm,
         ($expr:expr) => {
-            Decl::Stm { expr: $expr }
+            Decl::Stm {
+                expr: $expr,
+            }
         };
     }
 
@@ -185,7 +258,17 @@ pub mod macros {
     }
 
     pubmacro! { typed_arg,
-        ($name:ident:$ty:ident) => { (stringify!($name).to_string(), Some(stringify!($ty).to_string())) };
-        ($name:ident) => { (stringify!($name).to_string(), None) }
+        ($name:ident:$ty:ident) => {
+            (
+                stringify!($name).to_string(),
+                Some(stringify!($ty).to_string()),
+            )
+        };
+        ($name:ident) => {
+            (
+                stringify!($name).to_string(),
+                None,
+            )
+        };
     }
 }

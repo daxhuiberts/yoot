@@ -1,4 +1,4 @@
-use crate::ast::{BinOpKind, Lit, UnOpKind};
+use crate::ast::ExprKind;
 use std::str::FromStr;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -11,7 +11,7 @@ pub enum TySimple {
 impl FromStr for TySimple {
     type Err = String;
 
-    fn from_str(input: &str) -> std::result::Result<Self, <Self as FromStr>::Err> {
+    fn from_str(input: &str) -> std::result::Result<Self, String> {
         match input {
             "Nil" => Ok(TySimple::Nil),
             "Bool" => Ok(TySimple::Bool),
@@ -35,36 +35,8 @@ pub enum Ty {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypedExpr {
-    pub kind: ExprKind,
+    pub kind: ExprKind<Self>,
     pub ty: TySimple,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum ExprKind {
-    Lit {
-        lit: Lit,
-    },
-    Ident {
-        name: String,
-    },
-    UnOp {
-        kind: UnOpKind,
-        expr: Box<TypedExpr>,
-    },
-    BinOp {
-        kind: BinOpKind,
-        left: Box<TypedExpr>,
-        right: Box<TypedExpr>,
-    },
-    If {
-        cond: Box<TypedExpr>,
-        then: Box<TypedExpr>,
-        else_: Option<Box<TypedExpr>>,
-    },
-    Call {
-        name: String,
-        args: Vec<TypedExpr>,
-    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -103,7 +75,7 @@ pub mod macros {
         () => {
             TypedExpr {
                 kind: ExprKind::Lit {
-                    lit: Lit::Nil,
+                    lit: LitKind::Nil,
                 },
                 ty: TySimple::Nil,
             }
@@ -112,7 +84,7 @@ pub mod macros {
 
     // pubmacro! { bool,
     //     ($value:literal) => {
-    //         Expr::Lit(Lit::Bool($value))
+    //         Expr::Lit(LitKind::Bool($value))
     //     };
     // }
 
@@ -120,7 +92,7 @@ pub mod macros {
         ($value:literal) => {
             TypedExpr {
                 kind: ExprKind::Lit {
-                    lit: Lit::Num($value),
+                    lit: LitKind::Num($value),
                 },
                 ty: TySimple::Num,
             }
@@ -129,7 +101,7 @@ pub mod macros {
 
     // pubmacro! { str,
     //     ($value:literal) => {
-    //         Expr::Lit(Lit::Str($value.to_string()))
+    //         Expr::Lit(LitKind::Str($value.to_string()))
     //     };
     // }
 

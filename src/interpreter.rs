@@ -66,13 +66,22 @@ impl<'a> Interpreter<'a> {
 }
 
 fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
-    match expr {
-        Expr::Lit(Lit::Nil) => Ok(Value::Nil),
-        Expr::Lit(Lit::Bool(val)) => Ok(Value::Bool(*val)),
-        Expr::Lit(Lit::Num(val)) => Ok(Value::Num(*val)),
-        Expr::Lit(Lit::Str(val)) => Ok(Value::Str(val.clone())),
+    match &expr.kind {
+        ExprKind::Lit { lit: LitKind::Nil } => Ok(Value::Nil),
 
-        Expr::Ident(name) => {
+        ExprKind::Lit {
+            lit: LitKind::Bool(val),
+        } => Ok(Value::Bool(*val)),
+
+        ExprKind::Lit {
+            lit: LitKind::Num(val),
+        } => Ok(Value::Num(*val)),
+
+        ExprKind::Lit {
+            lit: LitKind::Str(val),
+        } => Ok(Value::Str(val.clone())),
+
+        ExprKind::Ident { name } => {
             if let Some(Var { kind, .. }) = vars.iter().rev().find(|var| var.name == *name) {
                 if let Kind::Val { value } = kind {
                     Ok(value.clone())
@@ -84,7 +93,10 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::UnOp(UnOpKind::Neg, expr) => {
+        ExprKind::UnOp {
+            kind: UnOpKind::Neg,
+            expr,
+        } => {
             let val = eval(expr, vars)?;
             if let Value::Num(val) = val {
                 Ok(Value::Num(-val))
@@ -93,7 +105,10 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::UnOp(UnOpKind::Not, expr) => {
+        ExprKind::UnOp {
+            kind: UnOpKind::Not,
+            expr,
+        } => {
             let val = eval(expr, vars)?;
             if let Value::Bool(val) = val {
                 Ok(Value::Bool(!val))
@@ -102,7 +117,11 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::BinOp(BinOpKind::Add, left, right) => {
+        ExprKind::BinOp {
+            kind: BinOpKind::Add,
+            left,
+            right,
+        } => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -113,7 +132,11 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::BinOp(BinOpKind::Sub, left, right) => {
+        ExprKind::BinOp {
+            kind: BinOpKind::Sub,
+            left,
+            right,
+        } => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -124,7 +147,11 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::BinOp(BinOpKind::Mul, left, right) => {
+        ExprKind::BinOp {
+            kind: BinOpKind::Mul,
+            left,
+            right,
+        } => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -135,7 +162,11 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::BinOp(BinOpKind::Div, left, right) => {
+        ExprKind::BinOp {
+            kind: BinOpKind::Div,
+            left,
+            right,
+        } => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -146,7 +177,11 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::BinOp(BinOpKind::Eq, left, right) => {
+        ExprKind::BinOp {
+            kind: BinOpKind::Eq,
+            left,
+            right,
+        } => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -160,7 +195,11 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::BinOp(BinOpKind::Neq, left, right) => {
+        ExprKind::BinOp {
+            kind: BinOpKind::Neq,
+            left,
+            right,
+        } => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -174,7 +213,11 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::BinOp(BinOpKind::Lt, left, right) => {
+        ExprKind::BinOp {
+            kind: BinOpKind::Lt,
+            left,
+            right,
+        } => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -186,7 +229,11 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::BinOp(BinOpKind::Lte, left, right) => {
+        ExprKind::BinOp {
+            kind: BinOpKind::Lte,
+            left,
+            right,
+        } => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -198,7 +245,11 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::BinOp(BinOpKind::Gt, left, right) => {
+        ExprKind::BinOp {
+            kind: BinOpKind::Gt,
+            left,
+            right,
+        } => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -210,7 +261,11 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::BinOp(BinOpKind::Gte, left, right) => {
+        ExprKind::BinOp {
+            kind: BinOpKind::Gte,
+            left,
+            right,
+        } => {
             let left_val = eval(left, vars)?;
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
@@ -222,7 +277,11 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::BinOp(BinOpKind::And, left, right) => {
+        ExprKind::BinOp {
+            kind: BinOpKind::And,
+            left,
+            right,
+        } => {
             let left_val = eval(left, vars)?;
             if let Value::Bool(left_val) = left_val {
                 if left_val {
@@ -244,7 +303,11 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::BinOp(BinOpKind::Or, left, right) => {
+        ExprKind::BinOp {
+            kind: BinOpKind::Or,
+            left,
+            right,
+        } => {
             let left_val = eval(left, vars)?;
             if let Value::Bool(left_val) = left_val {
                 if left_val {
@@ -266,7 +329,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::If(cond, then, else_) => {
+        ExprKind::If { cond, then, else_ } => {
             let cond_val = eval(cond, vars)?;
 
             if let Value::Bool(cond_val) = cond_val {
@@ -286,7 +349,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             }
         }
 
-        Expr::Call(name, args) => {
+        ExprKind::Call { name, args } => {
             let var = vars.iter().rev().find(|var| var.name == *name);
 
             if let Some(Var { kind, .. }) = var {

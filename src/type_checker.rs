@@ -66,7 +66,7 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
                 env.insert(name.clone(), Ty::Function(ty_function.clone()));
                 typed_decls.push(TypedDecl::Fun {
                     name: name.clone(),
-                    args: args,
+                    args,
                     body: expr,
                     ty: ty_function,
                 })
@@ -78,25 +78,35 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
 }
 
 fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
-    match expr {
-        Expr::Lit(Lit::Nil) => Ok(TypedExpr {
-            kind: ExprKind::Lit { lit: Lit::Nil },
+    match &expr.kind {
+        ExprKind::Lit { lit: LitKind::Nil } => Ok(TypedExpr {
+            kind: ExprKind::Lit { lit: LitKind::Nil },
             ty: TySimple::Nil,
         }),
-        Expr::Lit(Lit::Bool(val)) => Ok(TypedExpr {
+
+        ExprKind::Lit {
+            lit: LitKind::Bool(val),
+        } => Ok(TypedExpr {
             kind: ExprKind::Lit {
-                lit: Lit::Bool(*val),
+                lit: LitKind::Bool(*val),
             },
             ty: TySimple::Bool,
         }),
-        Expr::Lit(Lit::Num(val)) => Ok(TypedExpr {
+
+        ExprKind::Lit {
+            lit: LitKind::Num(val),
+        } => Ok(TypedExpr {
             kind: ExprKind::Lit {
-                lit: Lit::Num(*val),
+                lit: LitKind::Num(*val),
             },
             ty: TySimple::Num,
         }),
-        Expr::Lit(Lit::Str(_)) => Err("str not supported".into()),
-        Expr::Ident(name) => match env.get(name) {
+
+        ExprKind::Lit {
+            lit: LitKind::Str(_),
+        } => Err("str not supported".into()),
+
+        ExprKind::Ident { name } => match env.get(name) {
             Some(Ty::Simple(ty)) => Ok(TypedExpr {
                 kind: ExprKind::Ident { name: name.clone() },
                 ty: ty.clone(),
@@ -104,7 +114,8 @@ fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
             Some(Ty::Function(..)) => Err(format!("{name} is not a value, but a function")),
             None => Err(format!("{name} not in env")),
         },
-        Expr::UnOp(kind, expr) => {
+
+        ExprKind::UnOp { kind, expr } => {
             let expr = check_expr(expr, env)?;
             let ty = expr.ty.clone();
             match kind {
@@ -130,7 +141,8 @@ fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
                 },
             }
         }
-        Expr::BinOp(kind, left, right) => {
+
+        ExprKind::BinOp { kind, left, right } => {
             let left = check_expr(left, env)?;
             let right = check_expr(right, env)?;
 
@@ -172,10 +184,11 @@ fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
                     left: Box::new(left),
                     right: Box::new(right),
                 },
-                ty: ty.clone(),
+                ty,
             })
         }
-        Expr::If(cond, then, else_) => {
+
+        ExprKind::If { cond, then, else_ } => {
             let cond = check_expr(cond, env)?;
             let then = check_expr(then, env)?;
             let (cond_ty, then_ty) = (cond.ty.clone(), then.ty.clone());
@@ -207,14 +220,15 @@ fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
                         then: Box::new(then),
                         else_: Some(Box::new(else_)),
                     },
-                    ty: then_ty.clone(),
+                    ty: then_ty,
                 }),
                 (then_ty, Some(else_ty), _) => Err(format!(
                     "expect then and else branch to be of same type: {then_ty:?} and {else_ty:?}"
                 )),
             }
         }
-        Expr::Call(name, args) => {
+
+        ExprKind::Call { name, args } => {
             let (function_args_ty, function_ret_ty) = match env.get(name) {
                 Some(Ty::Function(TyFunction { args, ret })) => Ok((args, ret)),
                 Some(Ty::Simple(..)) => Err(format!("{name} is not a function, but a value")),
@@ -230,7 +244,7 @@ fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
             }
 
             let args = args
-                .into_iter()
+                .iter()
                 .zip(function_args_ty)
                 .enumerate()
                 .map(|(index, (arg, expected_ty))| {

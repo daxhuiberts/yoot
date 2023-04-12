@@ -3,28 +3,30 @@ use crate::util::Result;
 
 use chumsky::prelude::*;
 
-fn literal() -> impl chumsky::Parser<char, Lit, Error = Simple<char>> + Clone {
-    let nil = just("nil").map(|_| Lit::Nil);
+fn literal() -> impl chumsky::Parser<char, LitKind, Error = Simple<char>> + Clone {
+    let nil = just("nil").map(|_| LitKind::Nil);
 
     let boolean = just("true")
         .to(true)
         .or(just("false").to(false))
-        .map(Lit::Bool);
+        .map(LitKind::Bool);
 
-    let number = text::int(10).from_str().unwrapped().map(Lit::Num);
+    let number = text::int(10).from_str().unwrapped().map(LitKind::Num);
 
     let string = just("\"")
         .ignore_then(none_of("\"").repeated())
         .then_ignore(just("\""))
         .collect::<String>()
-        .map(Lit::Str);
+        .map(LitKind::Str);
 
     nil.or(boolean).or(number).or(string)
 }
 
 fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clone {
     recursive(|expr| {
-        let literal = literal().map(Expr::Lit);
+        let literal = literal().map(|lit| Expr {
+            kind: ExprKind::Lit { lit },
+        });
 
         let if_ = just("if")
             .ignore_then(
@@ -34,8 +36,12 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
                     .then(just(", ").ignore_then(expr.clone()).or_not())
                     .delimited_by(just('('), just(')')),
             )
-            .map(|((cond, then), else_)| {
-                Expr::If(Box::new(cond), Box::new(then), else_.map(Box::new))
+            .map(|((cond, then), else_)| Expr {
+                kind: ExprKind::If {
+                    cond: Box::new(cond),
+                    then: Box::new(then),
+                    else_: else_.map(Box::new),
+                },
             });
 
         let call = text::ident()
@@ -44,9 +50,13 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
                     .separated_by(just(", "))
                     .delimited_by(just('('), just(')')),
             )
-            .map(|(name, args)| Expr::Call(name, args));
+            .map(|(name, args)| Expr {
+                kind: ExprKind::Call { name, args },
+            });
 
-        let identifier = text::ident().map(Expr::Ident);
+        let identifier = text::ident().map(|ident| Expr {
+            kind: ExprKind::Ident { name: ident },
+        });
 
         let subexpression = expr.delimited_by(just('('), just(')'));
 
@@ -61,7 +71,12 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
             .to(UnOpKind::Neg)
             .or(just('!').to(UnOpKind::Not))
             .then(primary.clone())
-            .map(|(unary, primary)| Expr::UnOp(unary, Box::new(primary)))
+            .map(|(kind, expr)| Expr {
+                kind: ExprKind::UnOp {
+                    kind,
+                    expr: Box::new(expr),
+                },
+            })
             .or(primary);
 
         let op = |c| just(c).delimited_by(just(' '), just(' '));
@@ -75,7 +90,13 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
                     .then(unary)
                     .repeated(),
             )
-            .foldl(|lhs, (op, rhs)| Expr::BinOp(op, Box::new(lhs), Box::new(rhs)));
+            .foldl(|left, (kind, right)| Expr {
+                kind: ExprKind::BinOp {
+                    kind,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                },
+            });
 
         let term = factor
             .clone()
@@ -86,7 +107,13 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
                     .then(factor)
                     .repeated(),
             )
-            .foldl(|lhs, (op, rhs)| Expr::BinOp(op, Box::new(lhs), Box::new(rhs)));
+            .foldl(|left, (kind, right)| Expr {
+                kind: ExprKind::BinOp {
+                    kind,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                },
+            });
 
         let comp = term
             .clone()
@@ -101,16 +128,34 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
                     .then(term)
                     .repeated(),
             )
-            .foldl(|lhs, (op, rhs)| Expr::BinOp(op, Box::new(lhs), Box::new(rhs)));
+            .foldl(|left, (kind, right)| Expr {
+                kind: ExprKind::BinOp {
+                    kind,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                },
+            });
 
         let and = comp
             .clone()
             .then(op("&&").to(BinOpKind::And).then(comp).repeated())
-            .foldl(|lhs, (op, rhs)| Expr::BinOp(op, Box::new(lhs), Box::new(rhs)));
+            .foldl(|left, (kind, right)| Expr {
+                kind: ExprKind::BinOp {
+                    kind,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                },
+            });
 
         and.clone()
             .then(op("||").to(BinOpKind::Or).then(and).repeated())
-            .foldl(|lhs, (op, rhs)| Expr::BinOp(op, Box::new(lhs), Box::new(rhs)))
+            .foldl(|left, (kind, right)| Expr {
+                kind: ExprKind::BinOp {
+                    kind,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                },
+            })
     })
 }
 
