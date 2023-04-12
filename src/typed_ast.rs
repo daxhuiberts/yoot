@@ -157,12 +157,12 @@ pub mod macros {
     binop!(Add, tadd);
     // binop!(Sub, sub);
     // binop!(Mul, mul);
-    // // binop!(Div, div);
+    // binop!(Div, div);
     // binop!(Eq, eq);
-    // // binop!(Neq, neq);
-    // // binop!(Gt, gt);
-    // // binop!(Gte, gte);
-    // // binop!(Lt, lt);
+    // binop!(Neq, neq);
+    // binop!(Gt, gt);
+    // binop!(Gte, gte);
+    // binop!(Lt, lt);
     // binop!(Lte, lte);
     // binop!(And, and);
     // binop!(Or, or);

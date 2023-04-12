@@ -1,4 +1,5 @@
 use super::ast::*;
+use crate::util::Result;
 
 use chumsky::prelude::*;
 
@@ -146,6 +147,10 @@ fn declaration() -> impl chumsky::Parser<char, Vec<Decl>, Error = Simple<char>> 
 
 pub fn parser() -> impl chumsky::Parser<char, Program, Error = Simple<char>> {
     declaration().then_ignore(end()).map(Program::new)
+}
+
+pub fn parse(input: &str) -> Result<Program> {
+    parser().parse(input).map_err(|err| format!("{err:?}"))
 }
 
 #[cfg(test)]
