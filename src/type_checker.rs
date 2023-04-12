@@ -5,21 +5,21 @@ use super::ast::*;
 use super::typed_ast::*;
 use super::util::*;
 
-pub fn type_check(program: &Program) -> Result<TypedProgram> {
+pub fn check(program: &Program) -> Result<TypedProgram> {
     Ok(TypedProgram::new(check_decls(program.decls())?))
 }
 
 pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
-    let mut env = HashMap::new();
-    let mut typed_decls = vec![];
-
-    for decl in decls {
-        match decl {
+    decls
+        .iter()
+        .map_with_context(HashMap::new(), |env, decl| match &decl {
             Decl::Stm { expr } => {
                 let expr = check_expr(expr, &env)?;
                 let ty = expr.ty.clone();
-                typed_decls.push(TypedDecl::Stm { expr, ty });
+
+                Ok(TypedDecl::Stm { expr, ty })
             }
+
             Decl::Ass {
                 name: (name, expected_type),
                 expr,
@@ -33,13 +33,16 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
                 if expected_type.clone().map_or(false, |ex| ex != ty) {
                     return Err(format!("expected {expected_type:?}, got {ty:?}"));
                 }
+
                 env.insert(name.clone(), Ty::Simple(ty.clone()));
-                typed_decls.push(TypedDecl::Ass {
+
+                Ok(TypedDecl::Ass {
                     name: name.clone(),
                     expr,
                     ty,
-                });
+                })
             }
+
             Decl::Fun { name, args, body } => {
                 let args = args
                     .iter()
@@ -64,17 +67,16 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
                 };
 
                 env.insert(name.clone(), Ty::Function(ty_function.clone()));
-                typed_decls.push(TypedDecl::Fun {
+
+                Ok(TypedDecl::Fun {
                     name: name.clone(),
                     args,
                     body: expr,
                     ty: ty_function,
                 })
             }
-        }
-    }
-
-    Ok(typed_decls)
+        })
+        .collect()
 }
 
 fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {

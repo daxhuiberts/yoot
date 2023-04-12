@@ -21,48 +21,31 @@ enum Kind {
     Fun { args: Vec<String>, body: Expr },
 }
 
-pub struct Interpreter<'a> {
-    program: &'a Program,
-    vars: Vec<Var>,
-}
-
-impl<'a> Interpreter<'a> {
-    pub fn new(program: &'a Program) -> Self {
-        Self {
-            program,
-            vars: Vec::new(),
-        }
-    }
-
-    pub fn execute(&mut self) -> Result<Value> {
-        let mut last = Value::Nil;
-
-        for decl in self.program.decls() {
-            last = match decl {
-                Decl::Ass { name, expr } => {
-                    let value = eval(expr, &self.vars)?;
-                    self.vars.push(Var {
-                        name: name.0.clone(),
-                        kind: Kind::Val { value },
-                    });
-                    Value::Nil
-                }
-                Decl::Fun { name, args, body } => {
-                    self.vars.push(Var {
-                        name: name.clone(),
-                        kind: Kind::Fun {
-                            args: args.iter().map(|arg| arg.0.clone()).collect(),
-                            body: body.clone(),
-                        },
-                    });
-                    Value::Nil
-                }
-                Decl::Stm { expr } => eval(expr, &self.vars)?,
+pub fn execute(program: &Program) -> Result<Value> {
+    program
+        .decls()
+        .iter()
+        .try_fold_with_context(Value::Nil, vec![], |vars, decl| match decl {
+            Decl::Ass { name, expr } => {
+                let value = eval(expr, &vars)?;
+                vars.push(Var {
+                    name: name.0.clone(),
+                    kind: Kind::Val { value },
+                });
+                Ok(Value::Nil)
             }
-        }
-
-        Ok(last)
-    }
+            Decl::Fun { name, args, body } => {
+                vars.push(Var {
+                    name: name.clone(),
+                    kind: Kind::Fun {
+                        args: args.iter().map(|arg| arg.0.clone()).collect(),
+                        body: body.clone(),
+                    },
+                });
+                Ok(Value::Nil)
+            }
+            Decl::Stm { expr } => eval(expr, &vars),
+        })
 }
 
 fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
@@ -477,28 +460,22 @@ mod test {
 
     #[test]
     fn test_execute_assignments() {
-        let decls = vec![
+        let program = Program::new(vec![
             ass!(foo, num!(1)),
             ass!(bar, num!(2)),
             stm!(eq!(add!(ident!(foo), ident!(bar)), num!(3))),
-        ];
+        ]);
 
-        let program = Program::new(decls);
-        let mut interpreter = Interpreter::new(&program);
-
-        assert_eq!(interpreter.execute(), Ok(Value::Bool(true)));
+        assert_eq!(execute(&program), Ok(Value::Bool(true)));
     }
 
     #[test]
     fn test_execute_function_call() {
-        let decls = vec![
+        let program = Program::new(vec![
             fun!(add, [a, b], add!(ident!(a), ident!(b))),
             stm!(call!(add, num!(1), num!(2))),
-        ];
+        ]);
 
-        let program = Program::new(decls);
-        let mut interpreter = Interpreter::new(&program);
-
-        assert_eq!(interpreter.execute(), Ok(Value::Num(3)));
+        assert_eq!(execute(&program), Ok(Value::Num(3)));
     }
 }

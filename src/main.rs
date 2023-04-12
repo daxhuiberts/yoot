@@ -7,21 +7,16 @@ mod typed_ast;
 mod util;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let src: String = std::fs::read_to_string(std::env::args().nth(1).unwrap()).unwrap();
+    let source: String = std::fs::read_to_string(std::env::args().nth(1).unwrap()).unwrap();
+    println!("SOURCE:\n{source}");
 
-    println!("SOURCE:\n{src}");
+    let program = parser::parse(&source)?;
+    println!("PARSED PROGRAM: {program:#?}");
 
-    let program = parser::parse(&src)?;
-
-    println!("PROGRAM: {program:#?}");
-
-    let mut interpreter = interpreter::Interpreter::new(&program);
-    let result = interpreter.execute();
-
+    let result = interpreter::execute(&program);
     println!("INTERPRETER RESULT: {result:?}");
 
-    let typed_program = type_checker::type_check(&program)?;
-
+    let typed_program = type_checker::check(&program)?;
     println!("TYPED PROGRAM: {typed_program:#?}");
 
     Ok(())
