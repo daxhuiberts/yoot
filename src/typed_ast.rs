@@ -35,7 +35,10 @@ pub enum Ty {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum TypedExpr {
-    Lit(Lit),
+    Lit {
+        lit: Lit,
+        ty: TySimple,
+    },
     Ident {
         name: String,
         ty: TySimple,
@@ -62,6 +65,19 @@ pub enum TypedExpr {
         args: Vec<TypedExpr>,
         ty: TySimple,
     },
+}
+
+impl TypedExpr {
+    pub fn get_ty(&self) -> &TySimple {
+        match self {
+            TypedExpr::Lit { ty, .. } => ty,
+            TypedExpr::Ident { ty, .. } => ty,
+            TypedExpr::UnOp { ty, .. } => ty,
+            TypedExpr::BinOp { ty, .. } => ty,
+            TypedExpr::If { ty, .. } => ty,
+            TypedExpr::Call { ty, .. } => ty,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -98,7 +114,7 @@ pub mod macros {
 
     pubmacro! { tnil,
         () => {
-            TypedExpr::Lit(Lit::Nil)
+            TypedExpr::Lit { lit: Lit::Nil, ty: TySimple::Nil }
         };
     }
 
@@ -110,7 +126,7 @@ pub mod macros {
 
     pubmacro! { tnum,
         ($value:literal) => {
-            TypedExpr::Lit(Lit::Num($value))
+            TypedExpr::Lit { lit: Lit::Num($value), ty: TySimple::Num }
         };
     }
 
