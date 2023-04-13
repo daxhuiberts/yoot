@@ -184,7 +184,7 @@ fn declaration() -> impl chumsky::Parser<char, Vec<Decl>, Error = Simple<char>> 
     assignment
         .or(function)
         .or(statement)
-        .separated_by(just("\n").repeated())
+        .separated_by(just("; ").ignored().or(just("\n").repeated().ignored()))
         .map(|decls| decls.into_iter().collect())
         .then_ignore(just("\n").or_not())
 }
@@ -332,6 +332,9 @@ mod test {
         // allow multiple newlines between statements,
         // but only one trailing newline at the end.
 
+        assert_ok!(declaration, "true", vec![stm!(bool!(true))]);
+        assert_ok!(declaration, "true\n", vec![stm!(bool!(true))]);
+
         assert_ok!(
             declaration,
             "true\nfalse",
@@ -350,6 +353,29 @@ mod test {
             vec![stm!(bool!(true)), stm!(bool!(false))]
         );
 
+        assert_err!(declaration, "true\n\n");
         assert_err!(declaration, "true\nfalse\n\n");
+    }
+
+    #[test]
+    fn test_declaration_separator_semicolon() {
+        assert_ok!(
+            declaration,
+            "true; false",
+            vec![stm!(bool!(true)), stm!(bool!(false))]
+        );
+
+        assert_ok!(
+            declaration,
+            "true; false\n",
+            vec![stm!(bool!(true)), stm!(bool!(false))]
+        );
+
+        assert_err!(declaration, "true;false");
+        assert_err!(declaration, "true; ; false");
+        assert_err!(declaration, "true;");
+        assert_err!(declaration, "true; ");
+        assert_err!(declaration, "true;\n");
+        assert_err!(declaration, "true; \n");
     }
 }
