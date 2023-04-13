@@ -184,10 +184,9 @@ fn declaration() -> impl chumsky::Parser<char, Vec<Decl>, Error = Simple<char>> 
     assignment
         .or(function)
         .or(statement)
-        .or_not()
-        .separated_by(just("\n"))
-        .allow_trailing()
-        .map(|decls| decls.into_iter().flatten().collect())
+        .separated_by(just("\n").repeated())
+        .map(|decls| decls.into_iter().collect())
+        .then_ignore(just("\n").or_not())
 }
 
 pub fn parser() -> impl chumsky::Parser<char, Program, Error = Simple<char>> {
@@ -326,5 +325,31 @@ mod test {
                 stm!(call!(add, num!(1), num!(2))),
             ]
         );
+    }
+
+    #[test]
+    fn test_trailing_newline() {
+        // allow multiple newlines between statements,
+        // but only one trailing newline at the end.
+
+        assert_ok!(
+            declaration,
+            "true\nfalse",
+            vec![stm!(bool!(true)), stm!(bool!(false))]
+        );
+
+        assert_ok!(
+            declaration,
+            "true\nfalse\n",
+            vec![stm!(bool!(true)), stm!(bool!(false))]
+        );
+
+        assert_ok!(
+            declaration,
+            "true\n\n\nfalse\n",
+            vec![stm!(bool!(true)), stm!(bool!(false))]
+        );
+
+        assert_err!(declaration, "true\nfalse\n\n");
     }
 }
