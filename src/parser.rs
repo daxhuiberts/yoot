@@ -175,9 +175,15 @@ fn declaration() -> impl chumsky::Parser<char, Vec<Decl>, Error = Simple<char>> 
                 .then(just(":").ignore_then(text::ident()).or_not())
                 .separated_by(just(" ")),
         )
+        .then(just(" -> ").ignore_then(text::ident()).or_not())
         .then_ignore(just(" = "))
         .then(expression.clone())
-        .map(|((name, args), body)| Decl::Fun { name, args, body });
+        .map(|(((name, args), ret), body)| Decl::Fun {
+            name,
+            args,
+            ret,
+            body,
+        });
 
     let statement = expression.map(|expr| Decl::Stm { expr });
 
@@ -335,6 +341,12 @@ mod test {
             declaration,
             "add a:Num b:Num = a + b",
             vec![fun!(add(a:Num, b:Num) => add!(ident!(a), ident!(b))),]
+        );
+
+        assert_ok!(
+            declaration,
+            "add a:Num b:Num -> Num = a + b",
+            vec![fun!(add(a:Num, b:Num):Num => add!(ident!(a), ident!(b))),]
         );
     }
 

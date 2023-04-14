@@ -73,6 +73,7 @@ pub enum Decl {
     Fun {
         name: String,
         args: Vec<(String, Option<String>)>,
+        ret: Option<String>,
         body: Expr,
     },
 }
@@ -241,27 +242,31 @@ pub mod macros {
     }
 
     pubmacro! { fun,
-        ($name:ident ( $($args:ident $(: $types:ident)?),* ) => $body:expr) => {
+        ($name:ident ( $($args:ident $(: $types:ident)?),* ) $(: $ret:ident)? => $body:expr) => {
             Decl::Fun {
                 name: stringify!($name).to_string(),
                 args: vec![$(typed_arg!($args $(: $types)?)),*],
+                ret: typ!($(: $ret)?),
                 body: $body,
             }
         };
     }
 
     pubmacro! { typed_arg,
-        ($name:ident:$ty:ident) => {
+        ($name:ident $(: $typ:ident)?) => {
             (
                 stringify!($name).to_string(),
-                Some(stringify!($ty).to_string()),
+                typ!($(: $typ)?),
             )
         };
-        ($name:ident) => {
-            (
-                stringify!($name).to_string(),
-                None,
-            )
+    }
+
+    pubmacro! { typ,
+        () => {
+            None
+        };
+        (: $ret:ident) => {
+            Some(stringify!($ret).to_string())
         };
     }
 
@@ -296,6 +301,7 @@ pub mod macros {
                 Decl::Fun {
                     name: "foo".to_string(),
                     args: vec![],
+                    ret: None,
                     body: nil!(),
                 }
             );
@@ -305,6 +311,7 @@ pub mod macros {
                 Decl::Fun {
                     name: "foo".to_string(),
                     args: vec![("a".to_string(), None)],
+                    ret: None,
                     body: nil!(),
                 }
             );
@@ -314,6 +321,7 @@ pub mod macros {
                 Decl::Fun {
                     name: "foo".to_string(),
                     args: vec![("a".to_string(), None), ("b".to_string(), None)],
+                    ret: None,
                     body: nil!(),
                 }
             );
@@ -323,6 +331,7 @@ pub mod macros {
                 Decl::Fun {
                     name: "foo".to_string(),
                     args: vec![("a".to_string(), Some("Num".to_string()))],
+                    ret: None,
                     body: nil!(),
                 }
             );
@@ -335,6 +344,30 @@ pub mod macros {
                         ("a".to_string(), Some("Num".to_string())),
                         ("b".to_string(), Some("Num".to_string()))
                     ],
+                    ret: None,
+                    body: nil!(),
+                }
+            );
+
+            assert_eq!(
+                fun!(foo():Num => nil!()),
+                Decl::Fun {
+                    name: "foo".to_string(),
+                    args: vec![],
+                    ret: Some("Num".to_string()),
+                    body: nil!(),
+                }
+            );
+
+            assert_eq!(
+                fun!(foo(a:Num, b:Num):Num => nil!()),
+                Decl::Fun {
+                    name: "foo".to_string(),
+                    args: vec![
+                        ("a".to_string(), Some("Num".to_string())),
+                        ("b".to_string(), Some("Num".to_string()))
+                    ],
+                    ret: Some("Num".to_string()),
                     body: nil!(),
                 }
             );

@@ -34,7 +34,12 @@ pub fn execute(program: &Program) -> Result<Value> {
                 });
                 Ok(Value::Nil)
             }
-            Decl::Fun { name, args, body } => {
+            Decl::Fun {
+                name,
+                args,
+                ret: _ret,
+                body,
+            } => {
                 vars.push(Var {
                     name: name.clone(),
                     kind: Kind::Fun {

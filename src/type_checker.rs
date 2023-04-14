@@ -43,7 +43,12 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
                 })
             }
 
-            Decl::Fun { name, args, body } => {
+            Decl::Fun {
+                name,
+                args,
+                ret: _ret,
+                body,
+            } => {
                 let args = args
                     .iter()
                     .cloned()
