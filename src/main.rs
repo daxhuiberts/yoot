@@ -11,5 +11,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let typed_program = yoot::type_check(&program)?;
     println!("TYPED PROGRAM: {typed_program:#?}");
 
+    // Only prints 'hello world' wasm program, not the provided program.
+    let result = yoot::compile_to_wasm(&typed_program);
+    println!("COMPILE RESULT: {result:#?}");
+
     Ok(())
 }
