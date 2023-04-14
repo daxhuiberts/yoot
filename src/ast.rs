@@ -232,29 +232,22 @@ pub mod macros {
     }
 
     pubmacro! { ass,
-        ($name:ident, $expr:expr) => {
+        ($name:ident $(: $type:ident)? = $expr:expr) => {
             Decl::Ass {
-                name: (stringify!($name).to_string(), None),
+                name: typed_arg!($name $(: $type)?),
                 expr: $expr,
             }
         };
     }
 
     pubmacro! { fun,
-        ($name:ident, [ $($args:ident),* ], $body:expr) => {
+        ($name:ident ( $($args:ident $(: $types:ident)?),* ) => $body:expr) => {
             Decl::Fun {
                 name: stringify!($name).to_string(),
-                args: vec![$(typed_arg!($args)),*],
+                args: vec![$(typed_arg!($args $(: $types)?)),*],
                 body: $body,
             }
         };
-        ($name:ident, [ $($args:ident:$types:ident),* ], $body:expr) => {
-            Decl::Fun {
-                name: stringify!($name).to_string(),
-                args: vec![$(typed_arg!($args:$types)),*],
-                body: $body,
-            }
-        }
     }
 
     pubmacro! { typed_arg,
@@ -270,5 +263,81 @@ pub mod macros {
                 None,
             )
         };
+    }
+
+    #[cfg(test)]
+    mod test {
+        use super::super::*;
+        use super::*;
+
+        #[test]
+        fn test_assignment() {
+            assert_eq!(
+                ass!(foo = nil!()),
+                Decl::Ass {
+                    name: ("foo".to_string(), None),
+                    expr: nil!(),
+                }
+            );
+
+            assert_eq!(
+                ass!(foo: Num = nil!()),
+                Decl::Ass {
+                    name: ("foo".to_string(), Some("Num".to_string())),
+                    expr: nil!(),
+                }
+            );
+        }
+
+        #[test]
+        fn test_function() {
+            assert_eq!(
+                fun!(foo() => nil!()),
+                Decl::Fun {
+                    name: "foo".to_string(),
+                    args: vec![],
+                    body: nil!(),
+                }
+            );
+
+            assert_eq!(
+                fun!(foo(a) => nil!()),
+                Decl::Fun {
+                    name: "foo".to_string(),
+                    args: vec![("a".to_string(), None)],
+                    body: nil!(),
+                }
+            );
+
+            assert_eq!(
+                fun!(foo(a, b) => nil!()),
+                Decl::Fun {
+                    name: "foo".to_string(),
+                    args: vec![("a".to_string(), None), ("b".to_string(), None)],
+                    body: nil!(),
+                }
+            );
+
+            assert_eq!(
+                fun!(foo(a: Num) => nil!()),
+                Decl::Fun {
+                    name: "foo".to_string(),
+                    args: vec![("a".to_string(), Some("Num".to_string()))],
+                    body: nil!(),
+                }
+            );
+
+            assert_eq!(
+                fun!(foo(a:Num, b:Num) => nil!()),
+                Decl::Fun {
+                    name: "foo".to_string(),
+                    args: vec![
+                        ("a".to_string(), Some("Num".to_string())),
+                        ("b".to_string(), Some("Num".to_string()))
+                    ],
+                    body: nil!(),
+                }
+            );
+        }
     }
 }

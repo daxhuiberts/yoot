@@ -330,7 +330,7 @@ mod test {
     #[test]
     fn test_check_decls_fun() {
         assert_eq!(
-            check_decls(&vec![fun!(inc, [val: Num], add!(ident!(val), num!(1)))]),
+            check_decls(&vec![fun!(inc(val:Num) => add!(ident!(val), num!(1)))]),
             Ok(vec![tfun!(
                 inc: (Num): Num,
                 [val],
@@ -339,7 +339,7 @@ mod test {
         );
 
         assert_eq!(
-            check_decls(&vec![fun!(inc, [val: Bool], add!(ident!(val), num!(1)))]),
+            check_decls(&vec![fun!(inc(val:Bool) => add!(ident!(val), num!(1)))]),
             Err("expected same type on both sides: left: Bool; right: Num".into())
         );
     }

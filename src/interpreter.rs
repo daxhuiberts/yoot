@@ -461,8 +461,8 @@ mod test {
     #[test]
     fn test_execute_assignments() {
         let program = Program::new(vec![
-            ass!(foo, num!(1)),
-            ass!(bar, num!(2)),
+            ass!(foo = num!(1)),
+            ass!(bar = num!(2)),
             stm!(eq!(add!(ident!(foo), ident!(bar)), num!(3))),
         ]);
 
@@ -472,7 +472,7 @@ mod test {
     #[test]
     fn test_execute_function_call() {
         let program = Program::new(vec![
-            fun!(add, [a, b], add!(ident!(a), ident!(b))),
+            fun!(add(a, b) => add!(ident!(a), ident!(b))),
             stm!(call!(add, num!(1), num!(2))),
         ]);
 
