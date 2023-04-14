@@ -258,7 +258,6 @@ mod test {
         assert_err!(expression, "1+2");
 
         assert_ok!(expression, "1 + 2", add!(num!(1), num!(2)));
-
         assert_ok!(expression, "2 - 1", sub!(num!(2), num!(1)));
 
         assert_err!(expression, "()");
@@ -313,20 +312,15 @@ mod test {
 
     #[test]
     fn test_declaration_expression() {
-        assert_ok!(declaration, "nil", vec![stm!(nil!()),]);
+        assert_ok!(declaration, "nil", vec![stm!(nil!())]);
 
-        assert_ok!(
-            declaration,
-            "a + b",
-            vec![stm!(add!(ident!(a), ident!(b))),]
-        );
+        assert_ok!(declaration, "a + b", vec![stm!(add!(ident!(a), ident!(b)))]);
     }
 
     #[test]
     fn test_declaration_assignment() {
-        assert_ok!(declaration, "foo = 1", vec![ass!(foo = num!(1)),]);
-
-        assert_ok!(declaration, "foo:Num = 1", vec![ass!(foo: Num = num!(1)),]);
+        assert_ok!(declaration, "foo = 1", vec![ass!(foo = num!(1))]);
+        assert_ok!(declaration, "foo:Num = 1", vec![ass!(foo: Num = num!(1))]);
     }
 
     #[test]
@@ -334,19 +328,19 @@ mod test {
         assert_ok!(
             declaration,
             "add a b = a + b",
-            vec![fun!(add(a, b) => add!(ident!(a), ident!(b))),]
+            vec![fun!(add(a, b) => add!(ident!(a), ident!(b)))]
         );
 
         assert_ok!(
             declaration,
             "add a:Num b:Num = a + b",
-            vec![fun!(add(a:Num, b:Num) => add!(ident!(a), ident!(b))),]
+            vec![fun!(add(a:Num, b:Num) => add!(ident!(a), ident!(b)))]
         );
 
         assert_ok!(
             declaration,
             "add a:Num b:Num -> Num = a + b",
-            vec![fun!(add(a:Num, b:Num):Num => add!(ident!(a), ident!(b))),]
+            vec![fun!(add(a:Num, b:Num):Num => add!(ident!(a), ident!(b)))]
         );
     }
 
