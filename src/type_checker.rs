@@ -46,7 +46,7 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
             Decl::Fun {
                 name,
                 args,
-                ret: _ret,
+                ret,
                 body,
             } => {
                 let args = args
@@ -59,17 +59,30 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
                     })
                     .collect::<Result<Vec<_>>>()?;
                 let (args, types): (Vec<_>, Vec<_>) = args.into_iter().unzip();
-                let local_env = args
-                    .iter()
-                    .cloned()
-                    .zip(types.iter().cloned().map(Ty::Simple))
-                    .collect::<HashMap<_, _>>();
-                let expr = check_expr(body, &local_env)?;
-                let ty = expr.ty.clone();
+
+                let ty_ret = ret.as_ref().ok_or(String::from("missing type"))?;
+                let ty_ret = TySimple::from_str(&ty_ret)?;
                 let ty_function = TyFunction {
-                    args: types,
-                    ret: ty,
+                    args: types.clone(),
+                    ret: ty_ret.clone(),
                 };
+
+                let mut scoped_env = env.clone();
+                scoped_env.insert(name.clone(), Ty::Function(ty_function.clone()));
+                scoped_env.extend(
+                    args.iter()
+                        .cloned()
+                        .zip(types.iter().cloned().map(Ty::Simple))
+                        .collect::<HashMap<_, _>>(),
+                );
+                let expr = check_expr(body, &scoped_env)?;
+
+                let provided_ty_ret = expr.ty.clone();
+                if provided_ty_ret != ty_ret {
+                    return Err(format!(
+                        "Expected {ty_ret:?} return value, got {provided_ty_ret:?}"
+                    ));
+                }
 
                 env.insert(name.clone(), Ty::Function(ty_function.clone()));
 
@@ -335,7 +348,7 @@ mod test {
     #[test]
     fn test_check_decls_fun() {
         assert_eq!(
-            check_decls(&vec![fun!(inc(val:Num) => add!(ident!(val), num!(1)))]),
+            check_decls(&vec![fun!(inc(val:Num):Num => add!(ident!(val), num!(1)))]),
             Ok(vec![tfun!(
                 inc: (Num): Num,
                 [val],
@@ -344,8 +357,13 @@ mod test {
         );
 
         assert_eq!(
-            check_decls(&vec![fun!(inc(val:Bool) => add!(ident!(val), num!(1)))]),
+            check_decls(&vec![fun!(inc(val:Bool):Num => add!(ident!(val), num!(1)))]),
             Err("expected same type on both sides: left: Bool; right: Num".into())
+        );
+
+        assert_eq!(
+            check_decls(&vec![fun!(inc(val:Num):Bool => add!(ident!(val), num!(1)))]),
+            Err("Expected Bool return value, got Num".into())
         );
     }
 }
