@@ -19,7 +19,7 @@ fn literal() -> impl chumsky::Parser<char, LitKind, Error = Simple<char>> + Clon
         .collect::<String>()
         .map(LitKind::Str);
 
-    nil.or(boolean).or(number).or(string)
+    choice((nil, boolean, number, string))
 }
 
 fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clone {
@@ -60,12 +60,7 @@ fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clon
 
         let subexpression = expr.delimited_by(just('('), just(')'));
 
-        let primary = literal
-            .or(if_)
-            .or(call)
-            .or(identifier)
-            .or(subexpression)
-            .boxed();
+        let primary = choice((literal, if_, call, identifier, subexpression)).boxed();
 
         let unary = just('-')
             .to(UnOpKind::Neg)
@@ -187,9 +182,7 @@ fn declaration() -> impl chumsky::Parser<char, Vec<Decl>, Error = Simple<char>> 
 
     let statement = expression.map(|expr| Decl::Stm { expr });
 
-    assignment
-        .or(function)
-        .or(statement)
+    choice((assignment, function, statement))
         .separated_by(just("; ").ignored().or(just("\n").repeated().ignored()))
         .map(|decls| decls.into_iter().collect())
         .then_ignore(just("\n").or_not())
