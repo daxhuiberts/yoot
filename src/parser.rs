@@ -304,6 +304,25 @@ mod test {
     }
 
     #[test]
+    fn test_call_statement() {
+        assert_ok!(parse_expr("foo()"), call!(foo()));
+        assert_ok!(parse_expr("foo(bar)"), call!(foo(ident!(bar))));
+        assert_ok!(
+            parse_expr("foo(bar, baz)"),
+            call!(foo(ident!(bar), ident!(baz)))
+        );
+        assert_ok!(
+            parse_expr("foo(bar, baz, quux)"),
+            call!(foo(ident!(bar), ident!(baz), ident!(quux)))
+        );
+
+        assert_ok!(parse_expr("foo(1 + 2)"), call!(foo(add!(num!(1), num!(2)))));
+        assert_ok!(
+            parse_expr("foo(1 + 2, 3 + 4)"),
+            call!(foo(add!(num!(1), num!(2)), add!(num!(3), num!(4))))
+        );
+    }
+    #[test]
     fn test_declaration_expression() {
         assert_ok!(declaration, "nil", vec![stm!(nil!())]);
 
