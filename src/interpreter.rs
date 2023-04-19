@@ -478,7 +478,7 @@ mod test {
     fn test_execute_function_call() {
         let program = Program::new(vec![
             fun!(add(a, b) => add!(ident!(a), ident!(b))),
-            stm!(call!(add, num!(1), num!(2))),
+            stm!(call!(add(num!(1), num!(2)))),
         ]);
 
         assert_eq!(execute(&program), Ok(Value::Num(3)));

@@ -345,7 +345,7 @@ mod test {
             vec![
                 ass!(foo = num!(1)),
                 fun!(inc(a) => add!(ident!(a), num!(1))),
-                stm!(call!(inc, ident!(foo))),
+                stm!(call!(inc(ident!(foo)))),
             ]
         );
     }

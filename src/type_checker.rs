@@ -322,15 +322,15 @@ mod test {
     fn test_check_expr_call() {
         assert_eq!(
             check_expr(
-                &call!(foo, num!(1)),
+                &call!(foo(num!(1))),
                 &eenv!(foo => Ty::Function(TyFunction { args: vec![TySimple::Num], ret: TySimple::Bool }))
             ),
-            Ok(tcall!(foo, tnum!(1); Bool))
+            Ok(tcall!(foo(tnum!(1)); Bool))
         );
 
         assert_eq!(
             check_expr(
-                &call!(foo, num!(1)),
+                &call!(foo(num!(1))),
                 &eenv!(foo => Ty::Function(TyFunction { args: vec![TySimple::Bool], ret: TySimple::Bool }))
             ),
             Err("Expected Bool for argument 0, got Num".into())
@@ -338,7 +338,7 @@ mod test {
 
         assert_eq!(
             check_expr(
-                &call!(foo, num!(1)),
+                &call!(foo(num!(1))),
                 &eenv!(foo => Ty::Function(TyFunction { args: vec![], ret: TySimple::Bool }))
             ),
             Err("expected 0 arguments for foo, got 1".into())

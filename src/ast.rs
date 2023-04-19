@@ -214,7 +214,7 @@ pub mod macros {
     }
 
     pubmacro! { call,
-        ($name:ident, $($args:expr),*) => {
+        ($name:ident ( $($args:expr),* )) => {
             Expr {
                 kind: ExprKind::Call {
                     name: stringify!($name).to_string(),

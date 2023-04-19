@@ -169,7 +169,7 @@ pub mod macros {
     // }
 
     pubmacro! { tcall,
-        ($name:ident, $($args:expr),* ; $ty:ident) => {
+        ($name:ident($($args:expr),*) ; $ty:ident) => {
             TypedExpr {
                 kind: ExprKind::Call {
                     name: stringify!($name).to_string(),
