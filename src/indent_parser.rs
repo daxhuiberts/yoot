@@ -191,16 +191,12 @@ fn declaration() -> impl chumsky::Parser<Token, Vec<Decl>, Error = Simple<Token>
     let statement = expression.map(|expr| Decl::Stm { expr });
 
     choice((assignment, function, statement))
-        // .separated_by(
-        //     choice((
-        //         just("; ").ignored(),
-        //         just("\n").repeated().at_least(1).ignored(),
-        //         just(";").then(just("\n").repeated().at_least(1)).ignored()
-        //     ))
-        // )
-        .separated_by(op(";").or_not())
+        .separated_by(choice((
+            op(";").ignored(),
+            just(Token::Newline).repeated().at_least(1).ignored(),
+        )))
         .map(|decls| decls.into_iter().collect())
-    // .then_ignore(op("\n").or_not())
+        .then_ignore(just(Token::Newline).or_not())
 }
 
 pub fn parser() -> impl chumsky::Parser<Token, Program, Error = Simple<Token>> {
@@ -243,7 +239,7 @@ mod test_from_parser {
     }
 
     #[test]
-    fn test_expression_from_str() {
+    fn test_expression() {
         assert_err!(parse_expr(""));
         assert_err!(parse_expr(" "));
         assert_err!(parse_expr("1a"));
@@ -302,9 +298,9 @@ mod test_from_parser {
         );
 
         assert_ok!(
-            parse_expr("1 + 2 <= 4 == false || !true"),
+            parse_expr("1 + 2 <= -4 == false || !true"),
             or!(
-                eq!(lte!(add!(num!(1), num!(2)), num!(4)), bool!(false)),
+                eq!(lte!(add!(num!(1), num!(2)), neg!(num!(4))), bool!(false)),
                 not!(bool!(true))
             )
         );
@@ -374,7 +370,7 @@ mod test_from_parser {
     #[test]
     fn test_declaration_multiple() {
         assert_ok!(
-            parse_decl("foo = 1;\ninc a = a + 1;\ninc(foo)"),
+            parse_decl("foo = 1\ninc a = a + 1\ninc(foo)"),
             vec![
                 ass!(foo = num!(1)),
                 fun!(inc(a) => add!(ident!(a), num!(1))),
@@ -383,33 +379,32 @@ mod test_from_parser {
         );
     }
 
-    // // indent parser doesn't support handling of newlines yet, only ; separators
-    // #[test]
-    // fn test_trailing_newline() {
-    //     // allow multiple newlines between statements,
-    //     // but only one trailing newline at the end.
+    #[test]
+    fn test_newline_handling() {
+        // allow multiple newlines between statements,
+        // but only one trailing newline at the end.
 
-    //     assert_ok!(parse_decl("true"), vec![stm!(bool!(true))]);
-    //     assert_ok!(parse_decl("true\n"), vec![stm!(bool!(true))]);
+        assert_ok!(parse_decl("true"), vec![stm!(bool!(true))]);
+        assert_ok!(parse_decl("true\n"), vec![stm!(bool!(true))]);
 
-    //     assert_ok!(
-    //         parse_decl("true\nfalse"),
-    //         vec![stm!(bool!(true)), stm!(bool!(false))]
-    //     );
+        assert_ok!(
+            parse_decl("true\nfalse"),
+            vec![stm!(bool!(true)), stm!(bool!(false))]
+        );
 
-    //     assert_ok!(
-    //         parse_decl("true\nfalse\n"),
-    //         vec![stm!(bool!(true)), stm!(bool!(false))]
-    //     );
+        assert_ok!(
+            parse_decl("true\nfalse\n"),
+            vec![stm!(bool!(true)), stm!(bool!(false))]
+        );
 
-    //     assert_ok!(
-    //         parse_decl("true\n\n\nfalse\n"),
-    //         vec![stm!(bool!(true)), stm!(bool!(false))]
-    //     );
+        assert_ok!(
+            parse_decl("true\n\n\nfalse\n"),
+            vec![stm!(bool!(true)), stm!(bool!(false))]
+        );
 
-    //     assert_err!(parse_decl("true\n\n"));
-    //     assert_err!(parse_decl("true\nfalse\n\n"));
-    // }
+        assert_err!(parse_decl("true\n\n"));
+        assert_err!(parse_decl("true\nfalse\n\n"));
+    }
 
     #[test]
     fn test_declaration_separator_semicolon() {
