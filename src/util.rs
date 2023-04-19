@@ -54,6 +54,18 @@ pub mod macros {
 
     pub(crate) use pubmacro;
 
+    pubmacro! { assert_ok,
+        ($test:expr, $expected:expr) => {
+            assert_eq!($test, Ok($expected));
+        }
+    }
+
+    pubmacro! { assert_err,
+        ($test:expr) => {
+            assert!($test.is_err());
+        }
+    }
+
     pubmacro! { map,
         () => {
             std::collections::HashMap::new()

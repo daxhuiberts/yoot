@@ -200,91 +200,77 @@ pub fn parse(input: &str) -> Result<Program> {
 mod test {
     use super::*;
     use crate::ast::macros::*;
+    use crate::util::macros::*;
 
-    fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> {
-        super::expression().then_ignore(end())
+    fn parse_expr(input: &str) -> std::result::Result<Expr, Vec<chumsky::error::Simple<char>>> {
+        expression().then_ignore(end()).parse(input)
     }
 
-    fn declaration() -> impl chumsky::Parser<char, Vec<Decl>, Error = Simple<char>> {
-        super::declaration().then_ignore(end())
-    }
-
-    macro_rules! assert_ok {
-        ($parser:ident, $program:literal, $expected:expr) => {
-            assert_eq!($parser().parse($program), Ok($expected));
-        };
-    }
-
-    macro_rules! assert_err {
-        ($parser:ident, $program:literal) => {
-            assert!($parser().parse($program).is_err());
-        };
+    fn parse_decl(
+        input: &str,
+    ) -> std::result::Result<Vec<Decl>, Vec<chumsky::error::Simple<char>>> {
+        declaration().then_ignore(end()).parse(input)
     }
 
     #[test]
     fn test_expression() {
-        assert_err!(expression, "");
-        assert_err!(expression, " ");
-        assert_err!(expression, "1a");
-        assert_err!(expression, "01");
+        assert_err!(parse_expr(""));
+        assert_err!(parse_expr(" "));
+        assert_err!(parse_expr("1a"));
+        assert_err!(parse_expr("01"));
 
-        assert_ok!(expression, "nil", nil!());
+        assert_ok!(parse_expr("nil"), nil!());
 
-        assert_ok!(expression, "true", bool!(true));
-        assert_ok!(expression, "false", bool!(false));
+        assert_ok!(parse_expr("true"), bool!(true));
+        assert_ok!(parse_expr("false"), bool!(false));
 
-        assert_ok!(expression, "a", ident!(a));
-        assert_ok!(expression, "a1", ident!(a1));
-        assert_ok!(expression, "foo", ident!(foo));
-        assert_ok!(expression, "bar", ident!(bar));
+        assert_ok!(parse_expr("a"), ident!(a));
+        assert_ok!(parse_expr("a1"), ident!(a1));
+        assert_ok!(parse_expr("foo"), ident!(foo));
+        assert_ok!(parse_expr("bar"), ident!(bar));
 
-        assert_ok!(expression, "1", num!(1));
-        assert_ok!(expression, "10", num!(10));
+        assert_ok!(parse_expr("1"), num!(1));
+        assert_ok!(parse_expr("10"), num!(10));
 
-        assert_ok!(expression, "\"hello\"", str!("hello"));
-        assert_ok!(expression, "\"world\"", str!("world"));
-        assert_ok!(expression, "\"hello world\"", str!("hello world"));
+        assert_ok!(parse_expr("\"hello\""), str!("hello"));
+        assert_ok!(parse_expr("\"world\""), str!("world"));
+        assert_ok!(parse_expr("\"hello world\""), str!("hello world"));
 
-        assert_ok!(expression, "!true", not!(bool!(true)));
-        assert_ok!(expression, "-1", neg!(num!(1)));
+        assert_ok!(parse_expr("!true"), not!(bool!(true)));
+        assert_ok!(parse_expr("-1"), neg!(num!(1)));
 
-        assert_err!(expression, "1+2");
+        assert_err!(parse_expr("1+2"));
 
-        assert_ok!(expression, "1 + 2", add!(num!(1), num!(2)));
-        assert_ok!(expression, "2 - 1", sub!(num!(2), num!(1)));
+        assert_ok!(parse_expr("1 + 2"), add!(num!(1), num!(2)));
+        assert_ok!(parse_expr("2 - 1"), sub!(num!(2), num!(1)));
 
-        assert_err!(expression, "()");
+        assert_err!(parse_expr("()"));
 
-        assert_ok!(expression, "(true)", bool!(true));
-        assert_ok!(expression, "(1)", num!(1));
+        assert_ok!(parse_expr("(true)"), bool!(true));
+        assert_ok!(parse_expr("(1)"), num!(1));
 
         assert_ok!(
-            expression,
-            "true && false || true",
+            parse_expr("true && false || true"),
             or!(and!(bool!(true), bool!(false)), bool!(true))
         );
 
         assert_ok!(
-            expression,
-            "true || false && true",
+            parse_expr("true || false && true"),
             or!(bool!(true), and!(bool!(false), bool!(true)))
         );
 
         assert_ok!(
-            expression,
-            "1 + 2 * 3 - 4",
+            parse_expr("1 + 2 * 3 - 4"),
             sub!(add!(num!(1), mul!(num!(2), num!(3))), num!(4))
         );
 
         assert_ok!(
-            expression,
-            "(1 + 2) * (3 - 4)",
+            parse_expr("(1 + 2) * (3 - 4)"),
             mul!(add!(num!(1), num!(2)), sub!(num!(3), num!(4)))
         );
 
         assert_ok!(
-            expression,
-            "1 + 2 <= -4 == false || !true",
+            parse_expr("1 + 2 <= -4 == false || !true"),
             or!(
                 eq!(lte!(add!(num!(1), num!(2)), neg!(num!(4))), bool!(false)),
                 not!(bool!(true))
@@ -294,11 +280,10 @@ mod test {
 
     #[test]
     fn test_if_statement() {
-        assert_ok!(expression, "if(true, 1)", iff!(bool!(true), num!(1)));
+        assert_ok!(parse_expr("if(true, 1)"), iff!(bool!(true), num!(1)));
 
         assert_ok!(
-            expression,
-            "if(true, 1, 2)",
+            parse_expr("if(true, 1, 2)"),
             iff!(bool!(true), num!(1), num!(2))
         );
     }
@@ -322,36 +307,34 @@ mod test {
             call!(foo(add!(num!(1), num!(2)), add!(num!(3), num!(4))))
         );
     }
+
     #[test]
     fn test_declaration_expression() {
-        assert_ok!(declaration, "nil", vec![stm!(nil!())]);
+        assert_ok!(parse_decl("nil"), vec![stm!(nil!())]);
 
-        assert_ok!(declaration, "a + b", vec![stm!(add!(ident!(a), ident!(b)))]);
+        assert_ok!(parse_decl("a + b"), vec![stm!(add!(ident!(a), ident!(b)))]);
     }
 
     #[test]
     fn test_declaration_assignment() {
-        assert_ok!(declaration, "foo = 1", vec![ass!(foo = num!(1))]);
-        assert_ok!(declaration, "foo:Num = 1", vec![ass!(foo: Num = num!(1))]);
+        assert_ok!(parse_decl("foo = 1"), vec![ass!(foo = num!(1))]);
+        assert_ok!(parse_decl("foo:Num = 1"), vec![ass!(foo: Num = num!(1))]);
     }
 
     #[test]
     fn test_declaration_function() {
         assert_ok!(
-            declaration,
-            "add a b = a + b",
+            parse_decl("add a b = a + b"),
             vec![fun!(add(a, b) => add!(ident!(a), ident!(b)))]
         );
 
         assert_ok!(
-            declaration,
-            "add a:Num b:Num = a + b",
+            parse_decl("add a:Num b:Num = a + b"),
             vec![fun!(add(a:Num, b:Num) => add!(ident!(a), ident!(b)))]
         );
 
         assert_ok!(
-            declaration,
-            "add a:Num b:Num -> Num = a + b",
+            parse_decl("add a:Num b:Num -> Num = a + b"),
             vec![fun!(add(a:Num, b:Num):Num => add!(ident!(a), ident!(b)))]
         );
     }
@@ -359,8 +342,7 @@ mod test {
     #[test]
     fn test_declaration_multiple() {
         assert_ok!(
-            declaration,
-            "foo = 1\ninc a = a + 1\ninc(foo)",
+            parse_decl("foo = 1\ninc a = a + 1\ninc(foo)"),
             vec![
                 ass!(foo = num!(1)),
                 fun!(inc(a) => add!(ident!(a), num!(1))),
@@ -370,54 +352,49 @@ mod test {
     }
 
     #[test]
-    fn test_trailing_newline() {
+    fn test_newline_handling() {
         // allow multiple newlines between statements,
         // but only one trailing newline at the end.
 
-        assert_ok!(declaration, "true", vec![stm!(bool!(true))]);
-        assert_ok!(declaration, "true\n", vec![stm!(bool!(true))]);
+        assert_ok!(parse_decl("true"), vec![stm!(bool!(true))]);
+        assert_ok!(parse_decl("true\n"), vec![stm!(bool!(true))]);
 
         assert_ok!(
-            declaration,
-            "true\nfalse",
+            parse_decl("true\nfalse"),
             vec![stm!(bool!(true)), stm!(bool!(false))]
         );
 
         assert_ok!(
-            declaration,
-            "true\nfalse\n",
+            parse_decl("true\nfalse\n"),
             vec![stm!(bool!(true)), stm!(bool!(false))]
         );
 
         assert_ok!(
-            declaration,
-            "true\n\n\nfalse\n",
+            parse_decl("true\n\n\nfalse\n"),
             vec![stm!(bool!(true)), stm!(bool!(false))]
         );
 
-        assert_err!(declaration, "true\n\n");
-        assert_err!(declaration, "true\nfalse\n\n");
+        assert_err!(parse_decl("true\n\n"));
+        assert_err!(parse_decl("true\nfalse\n\n"));
     }
 
     #[test]
     fn test_declaration_separator_semicolon() {
         assert_ok!(
-            declaration,
-            "true; false",
+            parse_decl("true; false"),
             vec![stm!(bool!(true)), stm!(bool!(false))]
         );
 
         assert_ok!(
-            declaration,
-            "true; false\n",
+            parse_decl("true; false\n"),
             vec![stm!(bool!(true)), stm!(bool!(false))]
         );
 
-        assert_err!(declaration, "true;false");
-        assert_err!(declaration, "true; ; false");
-        assert_err!(declaration, "true;");
-        assert_err!(declaration, "true; ");
-        assert_err!(declaration, "true;\n");
-        assert_err!(declaration, "true; \n");
+        assert_err!(parse_decl("true;false"));
+        assert_err!(parse_decl("true; ; false"));
+        assert_err!(parse_decl("true;"));
+        assert_err!(parse_decl("true; "));
+        assert_err!(parse_decl("true;\n"));
+        assert_err!(parse_decl("true; \n"));
     }
 }
