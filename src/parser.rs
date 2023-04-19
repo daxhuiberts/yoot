@@ -183,7 +183,10 @@ fn declaration() -> impl chumsky::Parser<char, Vec<Decl>, Error = Simple<char>> 
     let statement = expression.map(|expr| Decl::Stm { expr });
 
     choice((assignment, function, statement))
-        .separated_by(just("; ").ignored().or(just("\n").repeated().ignored()))
+        .separated_by(choice((
+            just("; ").ignored(),
+            just("\n").repeated().at_least(1).ignored(),
+        )))
         .map(|decls| decls.into_iter().collect())
         .then_ignore(just("\n").or_not())
 }

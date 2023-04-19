@@ -5,6 +5,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let program = yoot::parse(&source)?;
     println!("PARSED PROGRAM: {program:#?}");
 
+    let tokens = yoot::lex(&source);
+    let program2 = yoot::indent_parse(tokens);
+    if Ok(&program) == program2.as_ref() {
+        println!("YAY!!! IDENT PARSER SAME RESULT AS OLD PARSER!");
+    } else {
+        println!("OH NO!!! DIFFERENT INDENT PARSE: {program2:?}");
+    }
+
     let result = yoot::interpret(&program);
     println!("INTERPRETER RESULT: {result:?}");
 
