@@ -105,7 +105,7 @@ fn flatten(input: Vec<TokenTree>) -> impl Iterator<Item = Token> {
     })
 }
 
-pub fn lex(input: &str) -> Vec<Token> {
+pub fn tokenize(input: &str) -> Vec<Token> {
     let lexer = tree_lexer();
     let token_tree = lexer.parse(input).unwrap();
     flatten(token_tree).collect::<Vec<_>>()
@@ -320,7 +320,7 @@ mod test {
     #[test]
     fn test_lext() {
         assert_eq!(
-            lex("a\n  b\n   c\n"),
+            tokenize("a\n  b\n   c\n"),
             vec![
                 Token::Ident("a".to_string()),
                 Token::Newline,

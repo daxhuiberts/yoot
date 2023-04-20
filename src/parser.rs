@@ -1,5 +1,5 @@
 use crate::ast::*;
-use crate::indent_lexer::{Keyword, Token};
+use crate::tokenizer::{Keyword, Token};
 use crate::util::Result;
 use chumsky::prelude::*;
 
@@ -201,17 +201,17 @@ pub fn parse(tokens: Vec<Token>) -> Result<Program> {
 mod test {
     use super::*;
     use crate::ast::macros::*;
-    use crate::indent_lexer::lex;
+    use crate::tokenizer::tokenize;
     use crate::util::macros::*;
 
     fn parse_expr(input: &str) -> std::result::Result<Expr, Vec<chumsky::error::Simple<Token>>> {
-        expression().then_ignore(end()).parse(lex(input))
+        expression().then_ignore(end()).parse(tokenize(input))
     }
 
     fn parse_decl(
         input: &str,
     ) -> std::result::Result<Vec<Decl>, Vec<chumsky::error::Simple<Token>>> {
-        declaration().then_ignore(end()).parse(lex(input))
+        declaration().then_ignore(end()).parse(tokenize(input))
     }
 
     #[test]

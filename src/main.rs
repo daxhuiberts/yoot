@@ -2,7 +2,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let source: String = std::fs::read_to_string(std::env::args().nth(1).unwrap()).unwrap();
     println!("SOURCE:\n{source}");
 
-    let tokens = yoot::lex(&source);
+    let tokens = yoot::tokenize(&source);
     println!("TOKENS: {tokens:#?}");
 
     let program = yoot::parse(tokens)?;
