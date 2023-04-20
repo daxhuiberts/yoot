@@ -2,16 +2,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let source: String = std::fs::read_to_string(std::env::args().nth(1).unwrap()).unwrap();
     println!("SOURCE:\n{source}");
 
-    let program = yoot::parse(&source)?;
-    println!("PARSED PROGRAM: {program:#?}");
-
     let tokens = yoot::lex(&source);
-    let program2 = yoot::indent_parse(tokens);
-    if Ok(&program) == program2.as_ref() {
-        println!("YAY!!! IDENT PARSER SAME RESULT AS OLD PARSER!");
-    } else {
-        println!("OH NO!!! DIFFERENT INDENT PARSE: {program2:?}");
-    }
+    println!("TOKENS: {tokens:#?}");
+
+    let program = yoot::parse(tokens)?;
+    println!("PARSED PROGRAM: {program:#?}");
 
     let result = yoot::interpret(&program);
     println!("INTERPRETER RESULT: {result:?}");

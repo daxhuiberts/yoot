@@ -201,20 +201,6 @@ pub fn parse(tokens: Vec<Token>) -> Result<Program> {
 mod test {
     use super::*;
     use crate::ast::macros::*;
-
-    #[test]
-    fn test_expression() {
-        assert_eq!(
-            expression().parse([Token::Keyword(Keyword::Nil)]),
-            Ok(nil!())
-        );
-    }
-}
-
-#[cfg(test)]
-mod test_from_parser {
-    use super::*;
-    use crate::ast::macros::*;
     use crate::indent_lexer::lex;
     use crate::util::macros::*;
 
