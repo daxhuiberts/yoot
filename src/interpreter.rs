@@ -6,7 +6,6 @@ pub enum Value {
     Nil,
     Bool(bool),
     Num(i64),
-    Str(String),
 }
 
 #[derive(Clone, Debug)]
@@ -64,10 +63,6 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
         ExprKind::Lit {
             lit: LitKind::Num(val),
         } => Ok(Value::Num(*val)),
-
-        ExprKind::Lit {
-            lit: LitKind::Str(val),
-        } => Ok(Value::Str(val.clone())),
 
         ExprKind::Ident { name } => {
             if let Some(Var { kind, .. }) = vars.iter().rev().find(|var| var.name == *name) {
@@ -176,7 +171,6 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
                 (Value::Nil, Value::Nil) => Ok(Value::Bool(true)),
                 (Value::Bool(left), Value::Bool(right)) => Ok(Value::Bool(left == right)),
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left == right)),
-                (Value::Str(left), Value::Str(right)) => Ok(Value::Bool(left == right)),
                 _ => Err(format!(
                     "expect same type on both sides: {left_val:?} == {right_val:?}"
                 )),
@@ -194,7 +188,6 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
                 (Value::Nil, Value::Nil) => Ok(Value::Bool(false)),
                 (Value::Bool(left), Value::Bool(right)) => Ok(Value::Bool(left != right)),
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left != right)),
-                (Value::Str(left), Value::Str(right)) => Ok(Value::Bool(left != right)),
                 _ => Err(format!(
                     "expect same type on both sides: {left_val:?} != {right_val:?}"
                 )),
@@ -210,9 +203,8 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left < right)),
-                (Value::Str(left), Value::Str(right)) => Ok(Value::Bool(left < right)),
                 _ => Err(format!(
-                    "expect num or str on both sides: {left_val:?} < {right_val:?}"
+                    "expect num on both sides: {left_val:?} < {right_val:?}"
                 )),
             }
         }
@@ -226,9 +218,8 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left <= right)),
-                (Value::Str(left), Value::Str(right)) => Ok(Value::Bool(left <= right)),
                 _ => Err(format!(
-                    "expect num or str on both sides: {left_val:?} <= {right_val:?}"
+                    "expect num on both sides: {left_val:?} <= {right_val:?}"
                 )),
             }
         }
@@ -242,9 +233,8 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left > right)),
-                (Value::Str(left), Value::Str(right)) => Ok(Value::Bool(left > right)),
                 _ => Err(format!(
-                    "expect num or str on both sides: {left_val:?} > {right_val:?}"
+                    "expect num on both sides: {left_val:?} > {right_val:?}"
                 )),
             }
         }
@@ -258,9 +248,8 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             let right_val = eval(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left >= right)),
-                (Value::Str(left), Value::Str(right)) => Ok(Value::Bool(left >= right)),
                 _ => Err(format!(
-                    "expect num or str on both sides: {left_val:?} >= {right_val:?}"
+                    "expect num on both sides: {left_val:?} >= {right_val:?}"
                 )),
             }
         }

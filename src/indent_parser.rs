@@ -248,11 +248,6 @@ mod test_from_parser {
         assert_ok!(parse_expr("1"), num!(1));
         assert_ok!(parse_expr("10"), num!(10));
 
-        // // No string handling in indent_parser
-        // assert_ok!(parse_expr("\"hello\""), str!("hello"));
-        // assert_ok!(parse_expr("\"world\""), str!("world"));
-        // assert_ok!(parse_expr("\"hello world\""), str!("hello world"));
-
         assert_ok!(parse_expr("!true"), not!(bool!(true)));
         assert_ok!(parse_expr("-1"), neg!(num!(1)));
 

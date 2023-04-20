@@ -13,13 +13,7 @@ fn literal() -> impl chumsky::Parser<char, LitKind, Error = Simple<char>> + Clon
 
     let number = text::int(10).from_str().unwrapped().map(LitKind::Num);
 
-    let string = just("\"")
-        .ignore_then(none_of("\"").repeated())
-        .then_ignore(just("\""))
-        .collect::<String>()
-        .map(LitKind::Str);
-
-    choice((nil, boolean, number, string))
+    choice((nil, boolean, number))
 }
 
 fn expression() -> impl chumsky::Parser<char, Expr, Error = Simple<char>> + Clone {
@@ -234,10 +228,6 @@ mod test {
 
         assert_ok!(parse_expr("1"), num!(1));
         assert_ok!(parse_expr("10"), num!(10));
-
-        assert_ok!(parse_expr("\"hello\""), str!("hello"));
-        assert_ok!(parse_expr("\"world\""), str!("world"));
-        assert_ok!(parse_expr("\"hello world\""), str!("hello world"));
 
         assert_ok!(parse_expr("!true"), not!(bool!(true)));
         assert_ok!(parse_expr("-1"), neg!(num!(1)));

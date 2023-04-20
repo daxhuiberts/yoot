@@ -99,12 +99,6 @@ pub mod macros {
         };
     }
 
-    // pubmacro! { str,
-    //     ($value:literal) => {
-    //         Expr::Lit(LitKind::Str($value.to_string()))
-    //     };
-    // }
-
     pubmacro! { tident,
         ($value:ident, $ty:ident) => {
             TypedExpr {

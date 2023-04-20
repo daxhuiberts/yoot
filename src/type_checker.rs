@@ -122,10 +122,6 @@ fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
             ty: TySimple::Num,
         }),
 
-        ExprKind::Lit {
-            lit: LitKind::Str(_),
-        } => Err("str not supported".into()),
-
         ExprKind::Ident { name } => match env.get(name) {
             Some(Ty::Simple(ty)) => Ok(TypedExpr {
                 kind: ExprKind::Ident { name: name.clone() },
