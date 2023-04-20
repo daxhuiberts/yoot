@@ -14,7 +14,7 @@ pub enum Token {
     Num(i64),
     Keyword(Keyword),
     Ident(String),
-    Op(String),
+    Punct(String),
     OpenParen,
     CloseParen,
     OpenBrace,
@@ -56,7 +56,7 @@ fn token_lexer() -> impl Parser<char, Token, Error = Simple<char>> + Clone {
         .repeated()
         .at_least(1)
         .collect()
-        .map(Token::Op);
+        .map(Token::Punct);
 
     let container = select! {
         '(' => Token::OpenParen,
@@ -201,6 +201,10 @@ mod test {
 
         assert_eq!(lexer.parse("foo"), Ok(Token::Ident("foo".to_string())));
         assert_eq!(lexer.parse("nill"), Ok(Token::Ident("nill".to_string())));
+
+        assert_eq!(lexer.parse("!"), Ok(Token::Punct("!".to_string())));
+        assert_eq!(lexer.parse("="), Ok(Token::Punct("=".to_string())));
+        assert_eq!(lexer.parse("=="), Ok(Token::Punct("==".to_string())));
 
         assert_eq!(lexer.parse("("), Ok(Token::OpenParen));
         assert_eq!(lexer.parse(")"), Ok(Token::CloseParen));

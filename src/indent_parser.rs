@@ -12,14 +12,14 @@ fn literal() -> impl chumsky::Parser<Token, LitKind, Error = Simple<Token>> + Cl
     }
 }
 
-fn ident() -> impl chumsky::Parser<Token, String, Error = Simple<Token>> {
+fn ident() -> impl chumsky::Parser<Token, String, Error = Simple<Token>> + Clone {
     select! {
         Token::Ident(name) => name
     }
 }
 
-fn op(op: &str) -> impl chumsky::Parser<Token, (), Error = Simple<Token>> {
-    just(Token::Op(op.to_string())).ignored()
+fn punct(punct: &str) -> impl chumsky::Parser<Token, (), Error = Simple<Token>> + Clone {
+    just(Token::Punct(punct.to_string())).ignored()
 }
 
 fn expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> + Clone {
@@ -31,9 +31,9 @@ fn expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> + Cl
         let if_ = just(Token::Keyword(Keyword::If))
             .ignore_then(
                 expr.clone()
-                    .then_ignore(op(","))
+                    .then_ignore(punct(","))
                     .then(expr.clone())
-                    .then(op(",").ignore_then(expr.clone()).or_not())
+                    .then(punct(",").ignore_then(expr.clone()).or_not())
                     .delimited_by(just(Token::OpenParen), just(Token::CloseParen)),
             )
             .map(|((cond, then), else_)| Expr {
@@ -47,7 +47,7 @@ fn expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> + Cl
         let call = ident()
             .then(
                 expr.clone()
-                    .separated_by(op(","))
+                    .separated_by(punct(","))
                     .delimited_by(just(Token::OpenParen), just(Token::CloseParen)),
             )
             .map(|(name, args)| Expr {
@@ -62,9 +62,9 @@ fn expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> + Cl
 
         let primary = choice((literal, if_, call, identifier, subexpression)).boxed();
 
-        let unary = just(Token::Op("-".to_string()))
+        let unary = punct("-")
             .to(UnOpKind::Neg)
-            .or(just(Token::Op("!".to_string())).to(UnOpKind::Not))
+            .or(punct("!").to(UnOpKind::Not))
             .then(primary.clone())
             .map(|(kind, expr)| Expr {
                 kind: ExprKind::UnOp {
@@ -77,9 +77,9 @@ fn expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> + Cl
         let factor = unary
             .clone()
             .then(
-                just(Token::Op("*".to_string()))
+                punct("*")
                     .to(BinOpKind::Mul)
-                    .or(just(Token::Op("/".to_string())).to(BinOpKind::Div))
+                    .or(punct("/").to(BinOpKind::Div))
                     .then(unary)
                     .repeated(),
             )
@@ -94,9 +94,9 @@ fn expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> + Cl
         let term = factor
             .clone()
             .then(
-                just(Token::Op("+".to_string()))
+                punct("+")
                     .to(BinOpKind::Add)
-                    .or(just(Token::Op("-".to_string())).to(BinOpKind::Sub))
+                    .or(punct("-").to(BinOpKind::Sub))
                     .then(factor)
                     .repeated(),
             )
@@ -111,13 +111,13 @@ fn expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> + Cl
         let comp = term
             .clone()
             .then(
-                just(Token::Op(">=".to_string()))
+                punct(">=")
                     .to(BinOpKind::Gte)
-                    .or(just(Token::Op(">".to_string())).to(BinOpKind::Gt))
-                    .or(just(Token::Op("<".to_string())).to(BinOpKind::Lt))
-                    .or(just(Token::Op("<=".to_string())).to(BinOpKind::Lte))
-                    .or(just(Token::Op("==".to_string())).to(BinOpKind::Eq))
-                    .or(just(Token::Op("!=".to_string())).to(BinOpKind::Neq))
+                    .or(punct(">").to(BinOpKind::Gt))
+                    .or(punct("<").to(BinOpKind::Lt))
+                    .or(punct("<=").to(BinOpKind::Lte))
+                    .or(punct("==").to(BinOpKind::Eq))
+                    .or(punct("!=").to(BinOpKind::Neq))
                     .then(term)
                     .repeated(),
             )
@@ -131,12 +131,7 @@ fn expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> + Cl
 
         let and = comp
             .clone()
-            .then(
-                just(Token::Op("&&".to_string()))
-                    .to(BinOpKind::And)
-                    .then(comp)
-                    .repeated(),
-            )
+            .then(punct("&&").to(BinOpKind::And).then(comp).repeated())
             .foldl(|left, (kind, right)| Expr {
                 kind: ExprKind::BinOp {
                     kind,
@@ -146,12 +141,7 @@ fn expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> + Cl
             });
 
         and.clone()
-            .then(
-                just(Token::Op("||".to_string()))
-                    .to(BinOpKind::Or)
-                    .then(and)
-                    .repeated(),
-            )
+            .then(punct("||").to(BinOpKind::Or).then(and).repeated())
             .foldl(|left, (kind, right)| Expr {
                 kind: ExprKind::BinOp {
                     kind,
@@ -166,20 +156,20 @@ fn declaration() -> impl chumsky::Parser<Token, Vec<Decl>, Error = Simple<Token>
     let expression = expression();
 
     let assignment = ident()
-        .then(op(":").ignore_then(ident()).or_not())
-        .then_ignore(op("="))
+        .then(punct(":").ignore_then(ident()).or_not())
+        .then_ignore(punct("="))
         .then(expression.clone())
         .map(|(name, expr)| Decl::Ass { name, expr });
 
     let function = ident()
         .then(
             ident()
-                .then(op(":").ignore_then(ident()).or_not())
+                .then(punct(":").ignore_then(ident()).or_not())
                 .repeated(), // .separated_by(op(","))
                              // .delimited_by(just(Token::OpenParen), just(Token::CloseParen))
         )
-        .then(op("->").ignore_then(ident()).or_not())
-        .then_ignore(op("="))
+        .then(punct("->").ignore_then(ident()).or_not())
+        .then_ignore(punct("="))
         .then(expression.clone())
         .map(|(((name, args), ret), body)| Decl::Fun {
             name,
@@ -192,7 +182,7 @@ fn declaration() -> impl chumsky::Parser<Token, Vec<Decl>, Error = Simple<Token>
 
     choice((assignment, function, statement))
         .separated_by(choice((
-            op(";").ignored(),
+            punct(";").ignored(),
             just(Token::Newline).repeated().at_least(1).ignored(),
         )))
         .map(|decls| decls.into_iter().collect())
