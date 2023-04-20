@@ -87,9 +87,7 @@ fn tokenize_parser() -> impl chumsky::Parser<char, Spanned<Token>, Error = Simpl
         .or(colon)
         .or(string);
 
-    parser
-        .map_with_span(|token, span| Spanned(token, span))
-        .padded()
+    parser.map_with_span(Spanned).padded()
 }
 
 #[cfg(test)]

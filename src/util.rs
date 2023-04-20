@@ -2,12 +2,11 @@ use std::iter::Scan;
 
 pub type Result<T> = std::result::Result<T, String>;
 
+type MapWithContext<I, St, B, F> =
+    Scan<I, (F, St), fn(&mut (F, St), <I as Iterator>::Item) -> Option<B>>;
+
 pub trait IterExt: Iterator {
-    fn map_with_context<St, B, F>(
-        self,
-        init: St,
-        f: F,
-    ) -> Scan<Self, (F, St), fn(&mut (F, St), Self::Item) -> Option<B>>
+    fn map_with_context<St, B, F>(self, init: St, f: F) -> MapWithContext<Self, St, B, F>
     where
         Self: Sized,
         F: FnMut(&mut St, Self::Item) -> B,

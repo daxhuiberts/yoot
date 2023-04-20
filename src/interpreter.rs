@@ -27,7 +27,7 @@ pub fn execute(program: &Program) -> Result<Value> {
         .iter()
         .try_fold_with_context(Value::Nil, vec![], |vars, decl| match decl {
             Decl::Ass { name, expr } => {
-                let value = eval(expr, &vars)?;
+                let value = eval(expr, vars)?;
                 vars.push(Var {
                     name: name.0.clone(),
                     kind: Kind::Val { value },
@@ -49,7 +49,7 @@ pub fn execute(program: &Program) -> Result<Value> {
                 });
                 Ok(Value::Nil)
             }
-            Decl::Stm { expr } => eval(expr, &vars),
+            Decl::Stm { expr } => eval(expr, vars),
         })
 }
 

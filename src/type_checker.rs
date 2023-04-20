@@ -14,7 +14,7 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
         .iter()
         .map_with_context(HashMap::new(), |env, decl| match &decl {
             Decl::Stm { expr } => {
-                let expr = check_expr(expr, &env)?;
+                let expr = check_expr(expr, env)?;
                 let ty = expr.ty.clone();
 
                 Ok(TypedDecl::Stm { expr, ty })
@@ -28,7 +28,7 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
                     .clone()
                     .map(|exp_ty| TySimple::from_str(&exp_ty))
                     .transpose()?;
-                let expr = check_expr(expr, &env)?;
+                let expr = check_expr(expr, env)?;
                 let ty = expr.ty.clone();
                 if expected_type.clone().map_or(false, |ex| ex != ty) {
                     return Err(format!("expected {expected_type:?}, got {ty:?}"));
@@ -61,7 +61,7 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
                 let (args, types): (Vec<_>, Vec<_>) = args.into_iter().unzip();
 
                 let ty_ret = ret.as_ref().ok_or(String::from("missing type"))?;
-                let ty_ret = TySimple::from_str(&ty_ret)?;
+                let ty_ret = TySimple::from_str(ty_ret)?;
                 let ty_function = TyFunction {
                     args: types.clone(),
                     ret: ty_ret.clone(),
