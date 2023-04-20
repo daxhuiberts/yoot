@@ -4,8 +4,12 @@ Yoot is an experiment in programming language design and development as a result
 
 ### Todo
 
-- [ ] Merge bytecode compiler to main
 - [ ] Multi line blocks
+  - [ ] Create indent parser which correctly handles nesting
+    - [x] Add setup for indent parser
+    - [x] Split indent parser into separate tokenizer and parser modules
+    - [ ] Fix newline handling in indent parser
+- [ ] Merge bytecode compiler to main
 - [ ] Prototype no-panicing int type system
 - [ ] Compile to Binaryen
 - [ ] Compile to Cranelift
