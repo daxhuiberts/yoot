@@ -82,11 +82,16 @@ pub mod macros {
         };
     }
 
-    // pubmacro! { bool,
-    //     ($value:literal) => {
-    //         Expr::Lit(LitKind::Bool($value))
-    //     };
-    // }
+    pubmacro! { tbool,
+        ($value:literal) => {
+            TypedExpr {
+                kind: ExprKind::Lit {
+                    lit: LitKind::Bool($value),
+                },
+                ty: TySimple::Bool,
+            }
+        };
+    }
 
     pubmacro! { tnum,
         ($value:literal) => {
@@ -153,14 +158,28 @@ pub mod macros {
     // binop!(And, and);
     // binop!(Or, or);
 
-    // pubmacro! { iff,
-    //     ($expr:expr, $then:expr) => {
-    //         Expr::If(Box::new($expr), Box::new($then), None)
-    //     };
-    //     ($expr:expr, $then:expr, $else:expr) => {
-    //         Expr::If(Box::new($expr), Box::new($then), Some(Box::new($else)))
-    //     };
-    // }
+    pubmacro! { tif,
+        ($expr:expr, $then:expr; $ty:ident) => {
+            TypedExpr {
+                kind: ExprKind::If {
+                    cond: Box::new($expr),
+                    then: Box::new($then),
+                    else_: None,
+                },
+                ty: TySimple::$ty,
+            }
+        };
+        ($expr:expr, $then:expr, $else:expr; $ty:ident) => {
+            TypedExpr {
+                kind: ExprKind::If {
+                    cond: Box::new($expr),
+                    then: Box::new($then),
+                    else_: Some(Box::new($else)),
+                },
+                ty: TySimple::$ty,
+            }
+        };
+    }
 
     pubmacro! { tcall,
         ($name:ident($($args:expr),*) ; $ty:ident) => {
@@ -180,26 +199,27 @@ pub mod macros {
     //     };
     // }
 
-    // pubmacro! { ass,
-    //     ($name:ident, $expr:expr) => {
-    //         Decl::Ass {
-    //             name: stringify!($name).to_string(),
-    //             expr: $expr,
-    //         }
-    //     };
-    // }
+    pubmacro! { tass,
+        ($name:ident:$ret:ident = $expr:expr) => {
+            TypedDecl::Ass {
+                name: stringify!($name).to_string(),
+                expr: $expr,
+                ty: TySimple::$ret
+            }
+        };
+    }
 
     pubmacro! { tfun,
-        ($name:ident : ($($ty_args:ident),*):$ret:ident, [ $($args:ident),* ], $body:expr) => {
+        ($name:ident ( $($args:ident : $types:ident),* ) : $ret:ident => $body:expr) => {
             TypedDecl::Fun {
                 name: stringify!($name).to_string(),
                 args: vec![$(stringify!($args).to_string()),*],
                 body: $body,
                 ty: TyFunction {
-                    args: vec![$(TySimple::$ty_args),*],
+                    args: vec![$(TySimple::$types),*],
                     ret: TySimple::$ret,
                 }
             }
-        }
+        };
     }
 }

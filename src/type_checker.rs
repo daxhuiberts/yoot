@@ -315,6 +315,24 @@ mod test {
     }
 
     #[test]
+    fn test_check_expr_if() {
+        assert_eq!(
+            check_expr(&if_!(bool!(true), nil!()), &eenv!()),
+            Ok(tif!(tbool!(true), tnil!(); Nil))
+        );
+
+        assert_eq!(
+            check_expr(&if_!(bool!(true), num!(1), num!(2)), &eenv!()),
+            Ok(tif!(tbool!(true), tnum!(1), tnum!(2); Num))
+        );
+
+        assert_eq!(
+            check_expr(&if_!(bool!(true), num!(1)), &eenv!()),
+            Err("expect then branch to be of type nil: got Num".into())
+        );
+    }
+
+    #[test]
     fn test_check_expr_call() {
         assert_eq!(
             check_expr(
@@ -342,13 +360,29 @@ mod test {
     }
 
     #[test]
+    fn test_check_decls_ass() {
+        assert_eq!(
+            check_decls(&vec![ass!(foo = num!(1))]),
+            Ok(vec![tass!(foo: Num = tnum!(1))])
+        );
+
+        assert_eq!(
+            check_decls(&vec![ass!(foo: Num = num!(1))]),
+            Ok(vec![tass!(foo: Num = tnum!(1))])
+        );
+
+        assert_eq!(
+            check_decls(&vec![ass!(foo: Nil = num!(1))]),
+            Err("expected Some(Nil), got Num".into())
+        );
+    }
+
+    #[test]
     fn test_check_decls_fun() {
         assert_eq!(
             check_decls(&vec![fun!(inc(val:Num):Num => add!(ident!(val), num!(1)))]),
             Ok(vec![tfun!(
-                inc: (Num): Num,
-                [val],
-                tadd!(tident!(val, Num), tnum!(1), Num)
+                inc(val:Num):Num => tadd!(tident!(val, Num), tnum!(1), Num)
             )])
         );
 

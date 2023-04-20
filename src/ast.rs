@@ -181,7 +181,7 @@ pub mod macros {
     binop!(And, and);
     binop!(Or, or);
 
-    pubmacro! { iff,
+    pubmacro! { if_,
         ($expr:expr, $then:expr) => {
             Expr {
                 kind: ExprKind::If {
@@ -263,6 +263,64 @@ pub mod macros {
     mod test {
         use super::super::*;
         use super::*;
+
+        #[test]
+        fn test_if() {
+            assert_eq!(
+                if_!(bool!(true), num!(1)),
+                Expr {
+                    kind: ExprKind::If {
+                        cond: Box::new(bool!(true)),
+                        then: Box::new(num!(1)),
+                        else_: None
+                    }
+                }
+            );
+
+            assert_eq!(
+                if_!(bool!(true), num!(1), num!(2)),
+                Expr {
+                    kind: ExprKind::If {
+                        cond: Box::new(bool!(true)),
+                        then: Box::new(num!(1)),
+                        else_: Some(Box::new(num!(2)))
+                    }
+                }
+            );
+        }
+
+        #[test]
+        fn test_call() {
+            assert_eq!(
+                call!(foo()),
+                Expr {
+                    kind: ExprKind::Call {
+                        name: "foo".to_string(),
+                        args: vec![],
+                    }
+                }
+            );
+
+            assert_eq!(
+                call!(foo(nil!())),
+                Expr {
+                    kind: ExprKind::Call {
+                        name: "foo".to_string(),
+                        args: vec![nil!()],
+                    }
+                }
+            );
+
+            assert_eq!(
+                call!(foo(nil!(), nil!())),
+                Expr {
+                    kind: ExprKind::Call {
+                        name: "foo".to_string(),
+                        args: vec![nil!(), nil!()],
+                    }
+                }
+            );
+        }
 
         #[test]
         fn test_assignment() {

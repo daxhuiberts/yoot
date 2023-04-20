@@ -279,11 +279,11 @@ mod test {
 
     #[test]
     fn test_if_statement() {
-        assert_ok!(parse_expr("if(true, 1)"), iff!(bool!(true), num!(1)));
+        assert_ok!(parse_expr("if(true, 1)"), if_!(bool!(true), num!(1)));
 
         assert_ok!(
             parse_expr("if(true, 1, 2)"),
-            iff!(bool!(true), num!(1), num!(2))
+            if_!(bool!(true), num!(1), num!(2))
         );
     }
 

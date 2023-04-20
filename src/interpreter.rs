@@ -427,27 +427,27 @@ mod test {
     #[test]
     fn test_execute_if_statement() {
         assert_eq!(
-            eval(&iff!(bool!(true), num!(1), num!(2)), &Vec::new()),
+            eval(&if_!(bool!(true), num!(1), num!(2)), &Vec::new()),
             Ok(Value::Num(1))
         );
 
         assert_eq!(
-            eval(&iff!(bool!(false), num!(1), num!(2)), &Vec::new()),
+            eval(&if_!(bool!(false), num!(1), num!(2)), &Vec::new()),
             Ok(Value::Num(2))
         );
 
         assert_eq!(
-            eval(&iff!(bool!(true), num!(1)), &Vec::new()),
+            eval(&if_!(bool!(true), num!(1)), &Vec::new()),
             Ok(Value::Num(1))
         );
 
         assert_eq!(
-            eval(&iff!(bool!(false), num!(1)), &Vec::new()),
+            eval(&if_!(bool!(false), num!(1)), &Vec::new()),
             Ok(Value::Nil)
         );
 
         assert_eq!(
-            eval(&iff!(nil!(), num!(1)), &Vec::new()),
+            eval(&if_!(nil!(), num!(1)), &Vec::new()),
             Err("expect bool as condition for if statement: Nil".into())
         );
     }
