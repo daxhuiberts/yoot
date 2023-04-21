@@ -47,7 +47,7 @@ pub enum TypedDecl {
     },
     Ass {
         name: String,
-        expr: TypedExpr,
+        expr: Vec<TypedDecl>,
         ty: TySimple,
     },
     Fun {
@@ -203,7 +203,7 @@ pub mod macros {
         ($name:ident:$ret:ident = $expr:expr) => {
             TypedDecl::Ass {
                 name: stringify!($name).to_string(),
-                expr: $expr,
+                expr: vec![tstm!($expr, $ret)],
                 ty: TySimple::$ret
             }
         };

@@ -159,7 +159,10 @@ fn declaration() -> impl chumsky::Parser<Token, Vec<Decl>, Error = Simple<Token>
         .then(punct(":").ignore_then(ident()).or_not())
         .then_ignore(punct("="))
         .then(expression.clone())
-        .map(|(name, expr)| Decl::Ass { name, expr });
+        .map(|(name, expr)| Decl::Ass {
+            name,
+            expr: vec![Decl::Stm { expr }],
+        });
 
     let function = ident()
         .then(

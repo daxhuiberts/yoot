@@ -24,6 +24,9 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
                 name: (name, expected_type),
                 expr,
             } => {
+                if expr.len() != 1 { return Err("Expect only 1 body decl".to_string()) }
+                let Decl::Stm { expr } = &expr[0] else { return Err("Expect stm decl".to_string()) };
+
                 let expected_type = expected_type
                     .clone()
                     .map(|exp_ty| TySimple::from_str(&exp_ty))
@@ -38,7 +41,7 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
 
                 Ok(TypedDecl::Ass {
                     name: name.clone(),
-                    expr,
+                    expr: vec![TypedDecl::Stm { expr, ty: ty.clone() }],
                     ty,
                 })
             }

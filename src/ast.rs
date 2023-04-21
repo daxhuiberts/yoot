@@ -67,7 +67,7 @@ pub enum Decl {
     },
     Ass {
         name: (String, Option<String>),
-        expr: Expr,
+        expr: Vec<Decl>,
     },
     Fun {
         name: String,
@@ -222,10 +222,10 @@ pub mod macros {
     }
 
     pubmacro! { ass,
-        ($name:ident $(: $type:ident)? = $expr:expr) => {
+        ($name:ident $(: $type:ident)? = $($expr:expr),+) => {
             Decl::Ass {
                 name: typed_arg!($name $(: $type)?),
-                expr: $expr,
+                expr: vec![$(stm!($expr)),+]
             }
         };
     }
@@ -334,7 +334,7 @@ pub mod macros {
                 ass!(foo = nil!()),
                 Decl::Ass {
                     name: ("foo".to_string(), None),
-                    expr: nil!(),
+                    expr: nilbody!(),
                 }
             );
 
@@ -342,7 +342,7 @@ pub mod macros {
                 ass!(foo: Num = nil!()),
                 Decl::Ass {
                     name: ("foo".to_string(), Some("Num".to_string())),
-                    expr: nil!(),
+                    expr: nilbody!(),
                 }
             );
         }

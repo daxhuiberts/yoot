@@ -26,6 +26,9 @@ pub fn execute(program: &Program) -> Result<Value> {
         .iter()
         .try_fold_with_context(Value::Nil, vec![], |vars, decl| match decl {
             Decl::Ass { name, expr } => {
+                if expr.len() != 1 { return Err("Expect only 1 body decl".to_string()) }
+                let Decl::Stm { expr } = &expr[0] else { return Err("Expect stm decl".to_string()) };
+
                 let value = eval(expr, vars)?;
                 vars.push(Var {
                     name: name.0.clone(),
