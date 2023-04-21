@@ -73,7 +73,7 @@ pub enum Decl {
         name: String,
         args: Vec<(String, Option<String>)>,
         ret: Option<String>,
-        body: Expr,
+        body: Vec<Decl>,
     },
 }
 
@@ -236,7 +236,7 @@ pub mod macros {
                 name: stringify!($name).to_string(),
                 args: vec![$(typed_arg!($args $(: $types)?)),*],
                 ret: typ!($(: $ret)?),
-                body: $body,
+                body: vec![stm!($body)],
             }
         };
     }
@@ -257,6 +257,12 @@ pub mod macros {
         (: $ret:ident) => {
             Some(stringify!($ret).to_string())
         };
+    }
+
+    pubmacro! { nilbody,
+        () => {
+            vec![stm!(nil!())]
+        }
     }
 
     #[cfg(test)]
@@ -349,7 +355,7 @@ pub mod macros {
                     name: "foo".to_string(),
                     args: vec![],
                     ret: None,
-                    body: nil!(),
+                    body: nilbody!(),
                 }
             );
 
@@ -359,7 +365,7 @@ pub mod macros {
                     name: "foo".to_string(),
                     args: vec![("a".to_string(), None)],
                     ret: None,
-                    body: nil!(),
+                    body: nilbody!(),
                 }
             );
 
@@ -369,7 +375,7 @@ pub mod macros {
                     name: "foo".to_string(),
                     args: vec![("a".to_string(), None), ("b".to_string(), None)],
                     ret: None,
-                    body: nil!(),
+                    body: nilbody!(),
                 }
             );
 
@@ -379,7 +385,7 @@ pub mod macros {
                     name: "foo".to_string(),
                     args: vec![("a".to_string(), Some("Num".to_string()))],
                     ret: None,
-                    body: nil!(),
+                    body: nilbody!(),
                 }
             );
 
@@ -392,7 +398,7 @@ pub mod macros {
                         ("b".to_string(), Some("Num".to_string()))
                     ],
                     ret: None,
-                    body: nil!(),
+                    body: nilbody!(),
                 }
             );
 
@@ -402,7 +408,7 @@ pub mod macros {
                     name: "foo".to_string(),
                     args: vec![],
                     ret: Some("Num".to_string()),
-                    body: nil!(),
+                    body: nilbody!(),
                 }
             );
 
@@ -415,7 +421,7 @@ pub mod macros {
                         ("b".to_string(), Some("Num".to_string()))
                     ],
                     ret: Some("Num".to_string()),
-                    body: nil!(),
+                    body: nilbody!(),
                 }
             );
         }

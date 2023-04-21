@@ -39,6 +39,9 @@ pub fn execute(program: &Program) -> Result<Value> {
                 ret: _ret,
                 body,
             } => {
+                if body.len() != 1 { return Err("Expect only 1 body decl".to_string()) }
+                let Decl::Stm { expr: body } = &body[0] else { return Err("Expect stm decl".to_string()) };
+
                 vars.push(Var {
                     name: name.clone(),
                     kind: Kind::Fun {

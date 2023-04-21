@@ -175,7 +175,7 @@ fn declaration() -> impl chumsky::Parser<Token, Vec<Decl>, Error = Simple<Token>
             name,
             args,
             ret,
-            body,
+            body: vec![Decl::Stm { expr: body }],
         });
 
     let statement = expression.map(|expr| Decl::Stm { expr });

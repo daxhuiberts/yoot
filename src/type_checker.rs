@@ -75,6 +75,10 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
                         .zip(types.iter().cloned().map(Ty::Simple))
                         .collect::<HashMap<_, _>>(),
                 );
+
+                if body.len() != 1 { return Err("Expect only 1 body decl".to_string()) }
+                let Decl::Stm { expr: body } = &body[0] else { return Err("Expect stm decl".to_string()) };
+
                 let expr = check_expr(body, &scoped_env)?;
 
                 let provided_ty_ret = expr.ty.clone();
@@ -89,7 +93,7 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
                 Ok(TypedDecl::Fun {
                     name: name.clone(),
                     args,
-                    body: expr,
+                    body: vec![TypedDecl::Stm { expr, ty: ty_ret }],
                     ty: ty_function,
                 })
             }

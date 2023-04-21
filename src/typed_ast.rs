@@ -53,7 +53,7 @@ pub enum TypedDecl {
     Fun {
         name: String,
         args: Vec<String>,
-        body: TypedExpr,
+        body: Vec<TypedDecl>,
         ty: TyFunction,
     },
 }
@@ -193,11 +193,11 @@ pub mod macros {
         }
     }
 
-    // pubmacro! { stm,
-    //     ($expr:expr) => {
-    //         Decl::Stm { expr: $expr }
-    //     };
-    // }
+    pubmacro! { tstm,
+        ($expr:expr, $ty:ident) => {
+            TypedDecl::Stm { expr: $expr, ty: TySimple::$ty }
+        };
+    }
 
     pubmacro! { tass,
         ($name:ident:$ret:ident = $expr:expr) => {
@@ -214,7 +214,7 @@ pub mod macros {
             TypedDecl::Fun {
                 name: stringify!($name).to_string(),
                 args: vec![$(stringify!($args).to_string()),*],
-                body: $body,
+                body: vec![tstm!($body, $ret)],
                 ty: TyFunction {
                     args: vec![$(TySimple::$types),*],
                     ret: TySimple::$ret,
