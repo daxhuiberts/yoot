@@ -181,6 +181,15 @@ where
             }
         }
 
+        if let Some(tail) = collapse(nesting.split_off(1), &make_group) {
+            let before_last_index = nesting.last_mut().unwrap().1.len() - 1;
+            nesting
+                .last_mut()
+                .unwrap()
+                .1
+                .insert(before_last_index, tail);
+        }
+
         nesting.remove(0).1
     })
 }
@@ -269,6 +278,17 @@ mod test {
                 TokenTree::Token(Token::Newline),
                 TokenTree::Token(Token::Newline),
                 TokenTree::Token(Token::Ident("bar".to_string())),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_tree_lexer_indent2() {
+        assert_eq!(
+            tree_lexer().parse("a\n  b"),
+            Ok(vec![
+                TokenTree::Token(Token::Ident("a".to_string())),
+                TokenTree::Tree(vec![TokenTree::Token(Token::Ident("b".to_string())),])
             ])
         );
     }
