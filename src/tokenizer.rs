@@ -78,7 +78,10 @@ fn tree_lexer() -> impl Parser<char, Vec<TokenTree>, Error = Simple<char>> {
     .then_ignore(end())
     // remove last newline which should not be there.
     .map(|mut output| {
-        matches!(output.pop(), Some(TokenTree::Token(Token::Newline)));
+        assert!(matches!(
+            output.pop(),
+            Some(TokenTree::Token(Token::Newline))
+        ));
         output
     })
 }
@@ -124,10 +127,7 @@ where
 {
     let line_ws = filter(|c: &C| c.is_inline_whitespace());
 
-    let line = token
-        .padded_by(line_ws.ignored().repeated())
-        .repeated()
-        .chain(empty().to(newline_token));
+    let line = token.padded_by(line_ws.ignored().repeated()).repeated();
 
     let lines = line_ws
         .repeated()
@@ -166,12 +166,18 @@ where
                 i += 1;
             }
             if let Some(tail) = collapse(nesting.split_off(i), &make_group) {
-                nesting.last_mut().unwrap().1.push(tail);
+                let before_last_index = nesting.last_mut().unwrap().1.len() - 1;
+                nesting
+                    .last_mut()
+                    .unwrap()
+                    .1
+                    .insert(before_last_index, tail);
             }
             if !indent.is_empty() {
                 nesting.push((indent.to_vec(), line, Some(line_span)));
             } else {
                 nesting.last_mut().unwrap().1.append(&mut line);
+                nesting.last_mut().unwrap().1.push(newline_token.clone());
             }
         }
 
@@ -268,20 +274,46 @@ mod test {
     }
 
     #[test]
-    fn test_tree_lexer_indent() {
+    fn test_tree_lexer_indent_with_next_line() {
+        assert_eq!(
+            tree_lexer().parse("foo\n  bar\nbaz"),
+            Ok(vec![
+                TokenTree::Token(Token::Ident("foo".to_string())),
+                TokenTree::Tree(vec![TokenTree::Token(Token::Ident("bar".to_string())),]),
+                TokenTree::Token(Token::Newline),
+                TokenTree::Token(Token::Ident("baz".to_string())),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_tree_lexer_multi_indent() {
         assert_eq!(
             tree_lexer().parse("a\n  b\n    c\n"),
             Ok(vec![
                 TokenTree::Token(Token::Ident("a".to_string())),
-                TokenTree::Token(Token::Newline),
                 TokenTree::Tree(vec![
                     TokenTree::Token(Token::Ident("b".to_string())),
-                    TokenTree::Token(Token::Newline),
-                    TokenTree::Tree(vec![
-                        TokenTree::Token(Token::Ident("c".to_string())),
-                        TokenTree::Token(Token::Newline),
-                    ])
+                    TokenTree::Tree(vec![TokenTree::Token(Token::Ident("c".to_string())),])
                 ]),
+                TokenTree::Token(Token::Newline)
+            ])
+        );
+    }
+
+    #[test]
+    fn test_tree_lexer_double_block() {
+        assert_eq!(
+            tree_lexer().parse("foo\n    indent_two\n  indent_one\n"),
+            Ok(vec![
+                TokenTree::Token(Token::Ident("foo".to_string())),
+                TokenTree::Tree(vec![TokenTree::Token(Token::Ident(
+                    "indent_two".to_string()
+                ))]),
+                TokenTree::Tree(vec![TokenTree::Token(Token::Ident(
+                    "indent_one".to_string()
+                ))]),
+                TokenTree::Token(Token::Newline)
             ])
         );
     }
@@ -291,28 +323,22 @@ mod test {
         assert_eq!(
             flatten(vec![
                 TokenTree::Token(Token::Ident("a".to_string())),
-                TokenTree::Token(Token::Newline),
                 TokenTree::Tree(vec![
                     TokenTree::Token(Token::Ident("b".to_string())),
-                    TokenTree::Token(Token::Newline),
-                    TokenTree::Tree(vec![
-                        TokenTree::Token(Token::Ident("c".to_string())),
-                        TokenTree::Token(Token::Newline),
-                    ])
-                ])
+                    TokenTree::Tree(vec![TokenTree::Token(Token::Ident("c".to_string())),])
+                ]),
+                TokenTree::Token(Token::Newline)
             ])
             .collect::<Vec<_>>(),
             vec![
                 Token::Ident("a".to_string()),
-                Token::Newline,
                 Token::OpenBlock,
                 Token::Ident("b".to_string()),
-                Token::Newline,
                 Token::OpenBlock,
                 Token::Ident("c".to_string()),
-                Token::Newline,
                 Token::CloseBlock,
-                Token::CloseBlock
+                Token::CloseBlock,
+                Token::Newline,
             ],
         );
     }
@@ -323,15 +349,13 @@ mod test {
             tokenize("a\n  b\n   c\n"),
             vec![
                 Token::Ident("a".to_string()),
-                Token::Newline,
                 Token::OpenBlock,
                 Token::Ident("b".to_string()),
-                Token::Newline,
                 Token::OpenBlock,
                 Token::Ident("c".to_string()),
+                Token::CloseBlock,
+                Token::CloseBlock,
                 Token::Newline,
-                Token::CloseBlock,
-                Token::CloseBlock,
             ],
         );
     }
