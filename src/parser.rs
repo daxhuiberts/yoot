@@ -22,7 +22,7 @@ fn punct(punct: &str) -> impl chumsky::Parser<Token, (), Error = Simple<Token>> 
     just(Token::Punct(punct.to_string())).ignored()
 }
 
-fn expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> + Clone {
+fn sub_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> + Clone {
     recursive(|expr| {
         let literal = literal().map(|lit| Expr {
             kind: ExprKind::Lit { lit },
@@ -152,8 +152,32 @@ fn expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> + Cl
     })
 }
 
+fn top_level_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> + Clone {
+    recursive(|top_level_expression| {
+        let inline_args = sub_expression().separated_by(punct(",")).at_least(1);
+        let blocks = top_level_expression
+            .delimited_by(just(Token::OpenBlock), just(Token::CloseBlock))
+            .repeated()
+            .at_least(1);
+        ident()
+            .then(choice((
+                inline_args
+                    .clone()
+                    .allow_trailing()
+                    .chain(blocks.clone())
+                    .labelled("inline and block args"),
+                inline_args.labelled("only inline args"),
+                blocks.labelled("only blocks args"),
+            )))
+            .map(|(name, args)| Expr {
+                kind: ExprKind::Call { name, args },
+            })
+            .or(sub_expression())
+    })
+}
+
 fn declaration() -> impl chumsky::Parser<Token, Vec<Decl>, Error = Simple<Token>> {
-    let expression = expression();
+    let expression = top_level_expression();
 
     let assignment = ident()
         .then(punct(":").ignore_then(ident()).or_not())
@@ -168,8 +192,7 @@ fn declaration() -> impl chumsky::Parser<Token, Vec<Decl>, Error = Simple<Token>
         .then(
             ident()
                 .then(punct(":").ignore_then(ident()).or_not())
-                .repeated(), // .separated_by(op(","))
-                             // .delimited_by(just(Token::OpenParen), just(Token::CloseParen))
+                .repeated(),
         )
         .then(punct("->").ignore_then(ident()).or_not())
         .then_ignore(punct("="))
@@ -208,13 +231,17 @@ mod test {
     use crate::util::macros::*;
 
     fn parse_expr(input: &str) -> std::result::Result<Expr, Vec<chumsky::error::Simple<Token>>> {
-        expression().then_ignore(end()).parse(tokenize(input))
+        top_level_expression()
+            .then_ignore(end())
+            .parse(dbg!(tokenize(input)))
     }
 
     fn parse_decl(
         input: &str,
     ) -> std::result::Result<Vec<Decl>, Vec<chumsky::error::Simple<Token>>> {
-        declaration().then_ignore(end()).parse(tokenize(input))
+        declaration()
+            .then_ignore(end())
+            .parse(dbg!(tokenize(input)))
     }
 
     #[test]
@@ -307,6 +334,38 @@ mod test {
         assert_ok!(
             parse_expr("foo(1 + 2, 3 + 4)"),
             call!(foo(add!(num!(1), num!(2)), add!(num!(3), num!(4))))
+        );
+    }
+
+    #[test]
+    fn test_block_expression() {
+        assert_ok!(parse_expr("foo"), ident!(foo));
+        assert_ok!(parse_expr("foo a"), call!(foo(ident!(a))));
+        assert_ok!(parse_expr("foo a, b"), call!(foo(ident!(a), ident!(b))));
+
+        assert_ok!(parse_expr("foo\n  bar"), call!(foo(ident!(bar))));
+        assert_ok!(
+            parse_expr("foo\n  bar\n    baz"),
+            call!(foo(call!(bar(ident!(baz)))))
+        );
+
+        assert_ok!(
+            parse_expr("foo a\n  bar"),
+            call!(foo(ident!(a), ident!(bar)))
+        );
+        assert_ok!(
+            parse_expr("foo a,\n  bar"),
+            call!(foo(ident!(a), ident!(bar)))
+        );
+        assert_ok!(
+            parse_expr("foo a, b\n  bar"),
+            call!(foo(ident!(a), ident!(b), ident!(bar)))
+        );
+
+        // Yoot allows for multiple blocks by first using a deep indent followed by a shallow indent.
+        assert_ok!(
+            parse_expr("foo\n    bar\n  baz"),
+            call!(foo(ident!(bar), ident!(baz)))
         );
     }
 
