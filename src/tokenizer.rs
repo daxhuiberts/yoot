@@ -76,13 +76,9 @@ fn tree_lexer() -> impl Parser<char, Vec<TokenTree>, Error = Simple<char>> {
         TokenTree::Tree(tts)
     })
     .then_ignore(end())
-    // remove last newline which should not be there.
-    .map(|mut output| {
-        assert!(matches!(
-            output.pop(),
-            Some(TokenTree::Token(Token::Newline))
-        ));
-        output
+    .map(|output| {
+        // remove first newline which should not be there.
+        output[1..].to_vec()
     })
 }
 
@@ -166,28 +162,18 @@ where
                 i += 1;
             }
             if let Some(tail) = collapse(nesting.split_off(i), &make_group) {
-                let before_last_index = nesting.last_mut().unwrap().1.len() - 1;
-                nesting
-                    .last_mut()
-                    .unwrap()
-                    .1
-                    .insert(before_last_index, tail);
+                nesting.last_mut().unwrap().1.push(tail);
             }
             if !indent.is_empty() {
                 nesting.push((indent.to_vec(), line, Some(line_span)));
             } else {
-                nesting.last_mut().unwrap().1.append(&mut line);
                 nesting.last_mut().unwrap().1.push(newline_token.clone());
+                nesting.last_mut().unwrap().1.append(&mut line);
             }
         }
 
         if let Some(tail) = collapse(nesting.split_off(1), &make_group) {
-            let before_last_index = nesting.last_mut().unwrap().1.len() - 1;
-            nesting
-                .last_mut()
-                .unwrap()
-                .1
-                .insert(before_last_index, tail);
+            nesting.last_mut().unwrap().1.push(tail);
         }
 
         nesting.remove(0).1
