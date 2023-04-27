@@ -1,5 +1,11 @@
 foo:Num = 3
-bar:Num = 5
-add a:Num b:Num -> Num = a + b
+bar:Num =
+  5
+add a:Num b:Num -> Num =
+  a + b
 
-add(foo, bar) == 8
+result:Num =
+  add foo
+    bar
+
+result == 8

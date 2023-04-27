@@ -159,6 +159,7 @@ fn top_level_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<To
             .delimited_by(just(Token::OpenBlock), just(Token::CloseBlock))
             .repeated()
             .at_least(1);
+
         ident()
             .then(choice((
                 inline_args
@@ -177,42 +178,45 @@ fn top_level_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<To
 }
 
 fn declaration() -> impl chumsky::Parser<Token, Vec<Decl>, Error = Simple<Token>> {
-    let expression = top_level_expression();
+    recursive(|declaration| {
+        let expression = top_level_expression();
 
-    let assignment = ident()
-        .then(punct(":").ignore_then(ident()).or_not())
-        .then_ignore(punct("="))
-        .then(expression.clone())
-        .map(|(name, expr)| Decl::Ass {
-            name,
-            expr: vec![Decl::Stm { expr }],
-        });
+        let definition = declaration
+            .separated_by(just(Token::Newline).repeated().at_least(1))
+            .delimited_by(just(Token::OpenBlock), just(Token::CloseBlock))
+            .or(expression.clone().map(|expr| vec![Decl::Stm { expr }]));
 
-    let function = ident()
-        .then(
-            ident()
-                .then(punct(":").ignore_then(ident()).or_not())
-                .repeated(),
-        )
-        .then(punct("->").ignore_then(ident()).or_not())
-        .then_ignore(punct("="))
-        .then(expression.clone())
-        .map(|(((name, args), ret), body)| Decl::Fun {
-            name,
-            args,
-            ret,
-            body: vec![Decl::Stm { expr: body }],
-        });
+        let assignment = ident()
+            .then(punct(":").ignore_then(ident()).or_not())
+            .then_ignore(punct("="))
+            .then(definition.clone())
+            .map(|(name, decls)| Decl::Ass { name, expr: decls });
 
-    let statement = expression.map(|expr| Decl::Stm { expr });
+        let function = ident()
+            .then(
+                ident()
+                    .then(punct(":").ignore_then(ident()).or_not())
+                    .repeated(),
+            )
+            .then(punct("->").ignore_then(ident()).or_not())
+            .then_ignore(punct("="))
+            .then(definition)
+            .map(|(((name, args), ret), decls)| Decl::Fun {
+                name,
+                args,
+                ret,
+                body: decls,
+            });
 
-    choice((assignment, function, statement))
-        .separated_by(choice((
-            punct(";").ignored(),
-            just(Token::Newline).repeated().at_least(1).ignored(),
-        )))
-        .map(|decls| decls.into_iter().collect())
-        .then_ignore(just(Token::Newline).or_not())
+        let statement = expression.map(|expr| Decl::Stm { expr });
+
+        choice((assignment, function, statement))
+    })
+    .separated_by(choice((
+        punct(";").ignored(),
+        just(Token::Newline).repeated().at_least(1).ignored(),
+    )))
+    .then_ignore(just(Token::Newline).or_not())
 }
 
 pub fn parser() -> impl chumsky::Parser<Token, Program, Error = Simple<Token>> {
