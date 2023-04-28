@@ -6,7 +6,6 @@ pub enum Keyword {
     Nil,
     True,
     False,
-    If,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -46,7 +45,6 @@ fn token_lexer() -> impl Parser<char, Token, Error = Simple<char>> + Clone {
         keyword("nil").to(Keyword::Nil),
         keyword("true").to(Keyword::True),
         keyword("false").to(Keyword::False),
-        keyword("if").to(Keyword::If),
     ))
     .map(Token::Keyword);
 

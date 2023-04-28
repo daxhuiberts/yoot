@@ -28,21 +28,21 @@ fn sub_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> 
             kind: ExprKind::Lit { lit },
         });
 
-        let if_ = just(Token::Keyword(Keyword::If))
-            .ignore_then(
-                expr.clone()
-                    .then_ignore(punct(","))
-                    .then(expr.clone())
-                    .then(punct(",").ignore_then(expr.clone()).or_not())
-                    .delimited_by(just(Token::OpenParen), just(Token::CloseParen)),
-            )
-            .map(|((cond, then), else_)| Expr {
-                kind: ExprKind::If {
-                    cond: Box::new(cond),
-                    then: Box::new(then),
-                    else_: else_.map(Box::new),
-                },
-            });
+        // let if_ = just(Token::Keyword(Keyword::If))
+        //     .ignore_then(
+        //         expr.clone()
+        //             .then_ignore(punct(","))
+        //             .then(expr.clone())
+        //             .then(punct(",").ignore_then(expr.clone()).or_not())
+        //             .delimited_by(just(Token::OpenParen), just(Token::CloseParen)),
+        //     )
+        //     .map(|((cond, then), else_)| Expr {
+        //         kind: ExprKind::If {
+        //             cond: Box::new(cond),
+        //             then: Box::new(then),
+        //             else_: else_.map(Box::new),
+        //         },
+        //     });
 
         let call = ident()
             .then(
@@ -60,7 +60,7 @@ fn sub_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> 
 
         let subexpression = expr.delimited_by(just(Token::OpenParen), just(Token::CloseParen));
 
-        let primary = choice((literal, if_, call, identifier, subexpression)).boxed();
+        let primary = choice((literal, call, identifier, subexpression)).boxed();
 
         let unary = punct("-")
             .to(UnOpKind::Neg)
@@ -174,6 +174,18 @@ fn top_level_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<To
                 kind: ExprKind::Call { name, args },
             })
             .or(sub_expression())
+    })
+    .map(|expr| match expr {
+        Expr {
+            kind: ExprKind::Call { name, args },
+        } if name == "if" && (args.len() == 2 || args.len() == 3) => Expr {
+            kind: ExprKind::If {
+                cond: Box::new(args[0].clone()),
+                then: Box::new(args[1].clone()),
+                else_: args.get(2).map(|else_| Box::new(else_.clone())),
+            },
+        },
+        expr => expr,
     })
 }
 
@@ -315,8 +327,15 @@ mod test {
     fn test_if_statement() {
         assert_ok!(parse_expr("if(true, 1)"), if_!(bool!(true), num!(1)));
 
+        assert_ok!(parse_expr("if true, 1"), if_!(bool!(true), num!(1)));
+
         assert_ok!(
             parse_expr("if(true, 1, 2)"),
+            if_!(bool!(true), num!(1), num!(2))
+        );
+
+        assert_ok!(
+            parse_expr("if true, 1, 2"),
             if_!(bool!(true), num!(1), num!(2))
         );
     }
