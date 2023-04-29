@@ -1,22 +1,60 @@
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+struct Args {
+    #[arg(long)]
+    print_tokens: bool,
+
+    #[arg(long)]
+    print_ast: bool,
+
+    #[arg(long)]
+    print_typed_ast: bool,
+
+    #[arg(long)]
+    print_all: bool,
+
+    #[arg(long)]
+    no_interpret: bool,
+
+    filename: String,
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let source: String = std::fs::read_to_string(std::env::args().nth(1).unwrap()).unwrap();
-    println!("SOURCE:\n{source}");
+    let args = Args::parse();
+
+    let source: String = std::fs::read_to_string(args.filename).unwrap();
+    if args.print_all {
+        println!("SOURCE:\n{source}");
+    }
 
     let tokens = yoot::tokenize(&source);
-    println!("TOKENS: {tokens:#?}");
+    if args.print_all || args.print_tokens {
+        println!("TOKENS: {tokens:#?}");
+    }
 
     let program = yoot::parse(tokens)?;
-    println!("PARSED PROGRAM: {program:#?}");
+    if args.print_all || args.print_ast {
+        println!("PARSED PROGRAM: {program:#?}");
+    }
 
-    let result = yoot::interpret(&program);
-    println!("INTERPRETER RESULT: {result:?}");
+    let typed_program = yoot::type_check(&program);
+    if args.print_all || args.print_tokens {
+        if let Ok(typed_program) = typed_program.as_ref() {
+            println!("TYPED PROGRAM: {typed_program:#?}");
+        }
+    }
 
-    let typed_program = yoot::type_check(&program)?;
-    println!("TYPED PROGRAM: {typed_program:#?}");
+    if !args.no_interpret {
+        let result = yoot::interpret(&program);
+        println!("INTERPRETER RESULT: {result:?}");
+    }
+
+    typed_program?;
 
     // Only prints 'hello world' wasm program, not the provided program.
-    let result = yoot::compile_to_wasm(&typed_program);
-    println!("COMPILE RESULT: {result:#?}");
+    // let result = yoot::compile_to_wasm(&typed_program);
+    // println!("COMPILE RESULT: {result:#?}");
 
     Ok(())
 }
