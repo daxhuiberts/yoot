@@ -37,9 +37,82 @@ pub trait IterExt: Iterator {
         })
         .map(|(value, _)| value)
     }
+
+    fn tuple_merger<F>(self, f: F) -> TupleMerger<Self, Self::Item, F>
+    where
+        Self: Sized,
+        F: Fn(&Self::Item, &Self::Item) -> Option<Self::Item>,
+    {
+        TupleMerger {
+            iterator: self,
+            prev: None,
+            f,
+        }
+    }
+}
+
+pub struct TupleMerger<I: Iterator<Item = T>, T, F: Fn(&T, &T) -> Option<T>> {
+    iterator: I,
+    prev: Option<T>,
+    f: F,
+}
+
+impl<I: Iterator<Item = T>, T, F: Fn(&T, &T) -> Option<T>> Iterator for TupleMerger<I, T, F> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<T> {
+        let prev = self.prev.take().or_else(|| self.iterator.next())?;
+        let Some(next) = self.iterator.next() else { return Some(prev) };
+
+        if let Some(merged) = (self.f)(&prev, &next) {
+            Some(merged)
+        } else {
+            self.prev = Some(next);
+            Some(prev)
+        }
+    }
 }
 
 impl<T> IterExt for T where T: Iterator {}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_tuple_merger() {
+        pub fn tuple_merger<T, F>(input: Vec<T>, f: F) -> Vec<T>
+        where
+            F: Fn(&T, &T) -> Option<T>,
+        {
+            input.into_iter().tuple_merger(f).collect()
+        }
+
+        assert_eq!(tuple_merger::<i32, _>(vec![], |_, _| None), vec![]);
+        assert_eq!(tuple_merger::<i32, _>(vec![1], |_, _| None), vec![1]);
+        assert_eq!(tuple_merger::<i32, _>(vec![1, 2], |_, _| None), vec![1, 2]);
+        assert_eq!(
+            tuple_merger::<i32, _>(vec![1, 2, 3], |_, _| None),
+            vec![1, 2, 3]
+        );
+        assert_eq!(
+            tuple_merger::<i32, _>(vec![1, 2, 3, 4], |_, _| None),
+            vec![1, 2, 3, 4]
+        );
+
+        assert_eq!(tuple_merger::<i32, _>(vec![], |_, _| Some(9)), vec![]);
+        assert_eq!(tuple_merger::<i32, _>(vec![1], |_, _| Some(9)), vec![1]);
+        assert_eq!(tuple_merger::<i32, _>(vec![1, 2], |_, _| Some(9)), vec![9]);
+        assert_eq!(
+            tuple_merger::<i32, _>(vec![1, 2, 3], |_, _| Some(9)),
+            vec![9, 3]
+        );
+        assert_eq!(
+            tuple_merger::<i32, _>(vec![1, 2, 3, 4], |_, _| Some(9)),
+            vec![9, 9]
+        );
+    }
+}
 
 #[cfg(test)]
 pub mod macros {
