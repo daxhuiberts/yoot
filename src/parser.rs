@@ -400,6 +400,8 @@ mod test {
             parse_expr("foo(1 + 2, 3 + 4)"),
             call!(foo(add!(num!(1), num!(2)), add!(num!(3), num!(4))))
         );
+
+        // assert_ok!(parse_expr("foo(1) + 2"), add!(call!(foo(num!(1))), num!(2)));
     }
 
     #[test]
