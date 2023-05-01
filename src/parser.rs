@@ -1,6 +1,6 @@
 use crate::ast::*;
 use crate::tokenizer::{Keyword, Token};
-use crate::util::Result;
+use crate::util::*;
 use chumsky::prelude::*;
 
 fn literal() -> impl chumsky::Parser<Token, LitKind, Error = Simple<Token>> + Clone {
@@ -189,6 +189,46 @@ fn top_level_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<To
     })
 }
 
+fn transform_smart_ifs(decls: Vec<Decl>) -> Vec<Decl> {
+    decls
+        .into_iter()
+        .tuple_merger(|a, b| match (a, b) {
+            (
+                Decl::Stm {
+                    expr:
+                        Expr {
+                            kind:
+                                ExprKind::If {
+                                    cond,
+                                    then,
+                                    else_: None,
+                                },
+                        },
+                },
+                Decl::Stm {
+                    expr:
+                        Expr {
+                            kind:
+                                ExprKind::Call {
+                                    name: name_b,
+                                    args: args_b,
+                                },
+                        },
+                },
+            ) if name_b == "else" && args_b.len() == 1 => Some(Decl::Stm {
+                expr: Expr {
+                    kind: ExprKind::If {
+                        cond: cond.clone(),
+                        then: then.clone(),
+                        else_: Some(Box::new(args_b[0].clone())),
+                    },
+                },
+            }),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+}
+
 fn declaration() -> impl chumsky::Parser<Token, Vec<Decl>, Error = Simple<Token>> {
     recursive(|declaration| {
         let expression = top_level_expression();
@@ -196,6 +236,7 @@ fn declaration() -> impl chumsky::Parser<Token, Vec<Decl>, Error = Simple<Token>
         let definition = declaration
             .separated_by(just(Token::Newline).repeated().at_least(1))
             .delimited_by(just(Token::OpenBlock), just(Token::CloseBlock))
+            .map(transform_smart_ifs)
             .or(expression.clone().map(|expr| vec![Decl::Stm { expr }]));
 
         let assignment = ident()
@@ -228,6 +269,7 @@ fn declaration() -> impl chumsky::Parser<Token, Vec<Decl>, Error = Simple<Token>
         punct(";").ignored(),
         just(Token::Newline).repeated().at_least(1).ignored(),
     )))
+    .map(transform_smart_ifs)
     .then_ignore(just(Token::Newline).or_not())
 }
 
@@ -482,5 +524,30 @@ mod test {
         assert_err!(parse_decl("true; "));
         assert_err!(parse_decl("true;\n"));
         assert_err!(parse_decl("true; \n"));
+    }
+
+    #[test]
+    fn test_transform_smart_ifs() {
+        assert_eq!(transform_smart_ifs(vec![]), vec![]);
+        assert_eq!(transform_smart_ifs(vec![stm!(nil!())]), vec![stm!(nil!())]);
+
+        assert_eq!(
+            transform_smart_ifs(vec![
+                stm!(if_!(bool!(true), num!(1))),
+                stm!(call!(else(num!(2))))
+            ]),
+            vec![stm!(if_!(bool!(true), num!(1), num!(2)))]
+        );
+
+        assert_eq!(
+            transform_smart_ifs(vec![
+                stm!(if_!(bool!(true), num!(1), num!(2))),
+                stm!(call!(else(num!(2))))
+            ]),
+            vec![
+                stm!(if_!(bool!(true), num!(1), num!(2))),
+                stm!(call!(else(num!(2))))
+            ]
+        );
     }
 }
