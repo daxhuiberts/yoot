@@ -3,7 +3,29 @@ use crate::tokenizer::{Keyword, Token};
 use crate::util::*;
 use chumsky::prelude::*;
 
-fn literal() -> impl chumsky::Parser<Token, LitKind, Error = Simple<Token>> + Clone {
+type Item = Token;
+const NEWLINE: Token = Token::Newline;
+const OPEN_PAREN: Token = Token::OpenParen;
+const CLOSE_PAREN: Token = Token::CloseParen;
+const OPEN_BLOCK: Token = Token::OpenBlock;
+const CLOSE_BLOCK: Token = Token::CloseBlock;
+
+fn ident() -> impl chumsky::Parser<Item, String, Error = Simple<Item>> + Clone {
+    select! {
+        Token::Ident(name) => name
+    }
+}
+
+fn punct(punct: &str) -> impl chumsky::Parser<Item, (), Error = Simple<Item>> + Clone {
+    let punct = punct.trim();
+    if punct.is_empty() {
+        empty().ignored().boxed()
+    } else {
+        just(Token::Punct(punct.to_string())).ignored().boxed()
+    }
+}
+
+fn literal() -> impl chumsky::Parser<Item, LitKind, Error = Simple<Item>> + Clone {
     select! {
         Token::Keyword(Keyword::Nil) => LitKind::Nil,
         Token::Keyword(Keyword::True) => LitKind::Bool(true),
@@ -12,17 +34,7 @@ fn literal() -> impl chumsky::Parser<Token, LitKind, Error = Simple<Token>> + Cl
     }
 }
 
-fn ident() -> impl chumsky::Parser<Token, String, Error = Simple<Token>> + Clone {
-    select! {
-        Token::Ident(name) => name
-    }
-}
-
-fn punct(punct: &str) -> impl chumsky::Parser<Token, (), Error = Simple<Token>> + Clone {
-    just(Token::Punct(punct.to_string())).ignored()
-}
-
-fn sub_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> + Clone {
+fn sub_expression() -> impl chumsky::Parser<Item, Expr, Error = Simple<Item>> + Clone {
     recursive(|expr| {
         let literal = literal().map(|lit| Expr {
             kind: ExprKind::Lit { lit },
@@ -31,10 +43,10 @@ fn sub_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> 
         // let if_ = just(Token::Keyword(Keyword::If))
         //     .ignore_then(
         //         expr.clone()
-        //             .then_ignore(punct(","))
+        //             .then_ignore(punct(", "))
         //             .then(expr.clone())
-        //             .then(punct(",").ignore_then(expr.clone()).or_not())
-        //             .delimited_by(just(Token::OpenParen), just(Token::CloseParen)),
+        //             .then(punct(", ").ignore_then(expr.clone()).or_not())
+        //             .delimited_by(just(OPEN_PAREN), just(CLOSE_PAREN)),
         //     )
         //     .map(|((cond, then), else_)| Expr {
         //         kind: ExprKind::If {
@@ -47,8 +59,8 @@ fn sub_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> 
         let call = ident()
             .then(
                 expr.clone()
-                    .separated_by(punct(","))
-                    .delimited_by(just(Token::OpenParen), just(Token::CloseParen)),
+                    .separated_by(punct(", "))
+                    .delimited_by(just(OPEN_PAREN), just(CLOSE_PAREN)),
             )
             .map(|(name, args)| Expr {
                 kind: ExprKind::Call { name, args },
@@ -58,7 +70,7 @@ fn sub_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> 
             kind: ExprKind::Ident { name },
         });
 
-        let subexpression = expr.delimited_by(just(Token::OpenParen), just(Token::CloseParen));
+        let subexpression = expr.delimited_by(just(OPEN_PAREN), just(CLOSE_PAREN));
 
         let primary = choice((literal, call, identifier, subexpression)).boxed();
 
@@ -77,9 +89,9 @@ fn sub_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> 
         let factor = unary
             .clone()
             .then(
-                punct("*")
+                punct(" * ")
                     .to(BinOpKind::Mul)
-                    .or(punct("/").to(BinOpKind::Div))
+                    .or(punct(" / ").to(BinOpKind::Div))
                     .then(unary)
                     .repeated(),
             )
@@ -94,9 +106,9 @@ fn sub_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> 
         let term = factor
             .clone()
             .then(
-                punct("+")
+                punct(" + ")
                     .to(BinOpKind::Add)
-                    .or(punct("-").to(BinOpKind::Sub))
+                    .or(punct(" - ").to(BinOpKind::Sub))
                     .then(factor)
                     .repeated(),
             )
@@ -111,13 +123,13 @@ fn sub_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> 
         let comp = term
             .clone()
             .then(
-                punct(">=")
+                punct(" >= ")
                     .to(BinOpKind::Gte)
-                    .or(punct(">").to(BinOpKind::Gt))
-                    .or(punct("<").to(BinOpKind::Lt))
-                    .or(punct("<=").to(BinOpKind::Lte))
-                    .or(punct("==").to(BinOpKind::Eq))
-                    .or(punct("!=").to(BinOpKind::Neq))
+                    .or(punct(" > ").to(BinOpKind::Gt))
+                    .or(punct(" < ").to(BinOpKind::Lt))
+                    .or(punct(" <= ").to(BinOpKind::Lte))
+                    .or(punct(" == ").to(BinOpKind::Eq))
+                    .or(punct(" != ").to(BinOpKind::Neq))
                     .then(term)
                     .repeated(),
             )
@@ -131,7 +143,7 @@ fn sub_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> 
 
         let and = comp
             .clone()
-            .then(punct("&&").to(BinOpKind::And).then(comp).repeated())
+            .then(punct(" && ").to(BinOpKind::And).then(comp).repeated())
             .foldl(|left, (kind, right)| Expr {
                 kind: ExprKind::BinOp {
                     kind,
@@ -141,7 +153,7 @@ fn sub_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> 
             });
 
         and.clone()
-            .then(punct("||").to(BinOpKind::Or).then(and).repeated())
+            .then(punct(" || ").to(BinOpKind::Or).then(and).repeated())
             .foldl(|left, (kind, right)| Expr {
                 kind: ExprKind::BinOp {
                     kind,
@@ -152,11 +164,13 @@ fn sub_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> 
     })
 }
 
-fn top_level_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<Token>> + Clone {
+fn top_level_expression() -> impl chumsky::Parser<Item, Expr, Error = Simple<Item>> + Clone {
     recursive(|top_level_expression| {
-        let inline_args = sub_expression().separated_by(punct(",")).at_least(1);
+        let inline_args =
+            punct(" ").ignore_then(sub_expression().separated_by(punct(", ")).at_least(1));
+
         let blocks = top_level_expression
-            .delimited_by(just(Token::OpenBlock), just(Token::CloseBlock))
+            .delimited_by(just(OPEN_BLOCK), just(CLOSE_BLOCK))
             .repeated()
             .at_least(1);
 
@@ -164,7 +178,7 @@ fn top_level_expression() -> impl chumsky::Parser<Token, Expr, Error = Simple<To
             .then(choice((
                 inline_args
                     .clone()
-                    .allow_trailing()
+                    .then_ignore(punct(",").or_not())
                     .chain(blocks.clone())
                     .labelled("inline and block args"),
                 inline_args.labelled("only inline args"),
@@ -229,30 +243,31 @@ fn transform_smart_ifs(decls: Vec<Decl>) -> Vec<Decl> {
         .collect::<Vec<_>>()
 }
 
-fn declaration() -> impl chumsky::Parser<Token, Vec<Decl>, Error = Simple<Token>> {
+fn declaration() -> impl chumsky::Parser<Item, Vec<Decl>, Error = Simple<Item>> {
     recursive(|declaration| {
         let expression = top_level_expression();
 
         let definition = declaration
-            .separated_by(just(Token::Newline).repeated().at_least(1))
-            .delimited_by(just(Token::OpenBlock), just(Token::CloseBlock))
+            .separated_by(just(NEWLINE).repeated().at_least(1))
+            .delimited_by(just(OPEN_BLOCK), just(CLOSE_BLOCK))
             .map(transform_smart_ifs)
-            .or(expression.clone().map(|expr| vec![Decl::Stm { expr }]));
+            .or(punct(" ").ignore_then(expression.clone().map(|expr| vec![Decl::Stm { expr }])));
 
         let assignment = ident()
             .then(punct(":").ignore_then(ident()).or_not())
-            .then_ignore(punct("="))
+            .then_ignore(punct(" ="))
             .then(definition.clone())
             .map(|(name, decls)| Decl::Ass { name, expr: decls });
 
         let function = ident()
+            .then_ignore(punct(" "))
             .then(
                 ident()
                     .then(punct(":").ignore_then(ident()).or_not())
-                    .repeated(),
+                    .separated_by(punct(" ")),
             )
-            .then(punct("->").ignore_then(ident()).or_not())
-            .then_ignore(punct("="))
+            .then(punct(" -> ").ignore_then(ident()).or_not())
+            .then_ignore(punct(" ="))
             .then(definition)
             .map(|(((name, args), ret), decls)| Decl::Fun {
                 name,
@@ -266,14 +281,14 @@ fn declaration() -> impl chumsky::Parser<Token, Vec<Decl>, Error = Simple<Token>
         choice((assignment, function, statement))
     })
     .separated_by(choice((
-        punct(";").ignored(),
-        just(Token::Newline).repeated().at_least(1).ignored(),
+        punct("; ").ignored(),
+        just(NEWLINE).repeated().at_least(1).ignored(),
     )))
     .map(transform_smart_ifs)
-    .then_ignore(just(Token::Newline).or_not())
+    .then_ignore(just(NEWLINE).or_not())
 }
 
-pub fn parser() -> impl chumsky::Parser<Token, Program, Error = Simple<Token>> {
+pub fn parser() -> impl chumsky::Parser<Item, Program, Error = Simple<Item>> {
     declaration().then_ignore(end()).map(Program::new)
 }
 
@@ -288,7 +303,7 @@ mod test {
     use crate::tokenizer::tokenize;
     use crate::util::macros::*;
 
-    fn parse_expr(input: &str) -> std::result::Result<Expr, Vec<chumsky::error::Simple<Token>>> {
+    fn parse_expr(input: &str) -> std::result::Result<Expr, Vec<chumsky::error::Simple<Item>>> {
         top_level_expression()
             .then_ignore(end())
             .parse(dbg!(tokenize(input)))
@@ -296,7 +311,7 @@ mod test {
 
     fn parse_decl(
         input: &str,
-    ) -> std::result::Result<Vec<Decl>, Vec<chumsky::error::Simple<Token>>> {
+    ) -> std::result::Result<Vec<Decl>, Vec<chumsky::error::Simple<Item>>> {
         declaration()
             .then_ignore(end())
             .parse(dbg!(tokenize(input)))
