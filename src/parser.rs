@@ -1,37 +1,34 @@
 use crate::ast::*;
-use crate::tokenizer::{Keyword, Token};
+use crate::indent_stream::indent_stream;
 use crate::util::*;
 use chumsky::prelude::*;
 
-type Item = Token;
-const NEWLINE: Token = Token::Newline;
-const OPEN_PAREN: Token = Token::OpenParen;
-const CLOSE_PAREN: Token = Token::CloseParen;
-const OPEN_BLOCK: Token = Token::OpenBlock;
-const CLOSE_BLOCK: Token = Token::CloseBlock;
+type Item = char;
+const NEWLINE: char = '\n';
+const OPEN_PAREN: char = '(';
+const CLOSE_PAREN: char = ')';
+const OPEN_BLOCK: char = crate::indent_stream::OPEN_BLOCK;
+const CLOSE_BLOCK: char = crate::indent_stream::CLOSE_BLOCK;
 
 fn ident() -> impl chumsky::Parser<Item, String, Error = Simple<Item>> + Clone {
-    select! {
-        Token::Ident(name) => name
-    }
+    text::ident()
 }
 
-fn punct(punct: &str) -> impl chumsky::Parser<Item, (), Error = Simple<Item>> + Clone {
-    let punct = punct.trim();
-    if punct.is_empty() {
-        empty().ignored().boxed()
-    } else {
-        just(Token::Punct(punct.to_string())).ignored().boxed()
-    }
+fn punct(punct: &str) -> impl chumsky::Parser<Item, (), Error = Simple<Item>> + Clone + '_ {
+    just(punct).ignored()
 }
 
 fn literal() -> impl chumsky::Parser<Item, LitKind, Error = Simple<Item>> + Clone {
-    select! {
-        Token::Keyword(Keyword::Nil) => LitKind::Nil,
-        Token::Keyword(Keyword::True) => LitKind::Bool(true),
-        Token::Keyword(Keyword::False) => LitKind::Bool(false),
-        Token::Num(num) => LitKind::Num(num),
-    }
+    let nil = just("nil").map(|_| LitKind::Nil);
+
+    let boolean = just("true")
+        .to(true)
+        .or(just("false").to(false))
+        .map(LitKind::Bool);
+
+    let number = text::int(10).from_str().unwrapped().map(LitKind::Num);
+
+    choice((nil, boolean, number))
 }
 
 fn sub_expression() -> impl chumsky::Parser<Item, Expr, Error = Simple<Item>> + Clone {
@@ -40,7 +37,7 @@ fn sub_expression() -> impl chumsky::Parser<Item, Expr, Error = Simple<Item>> + 
             kind: ExprKind::Lit { lit },
         });
 
-        // let if_ = just(Token::Keyword(Keyword::If))
+        // let if_ = just("if")
         //     .ignore_then(
         //         expr.clone()
         //             .then_ignore(punct(", "))
@@ -292,21 +289,22 @@ pub fn parser() -> impl chumsky::Parser<Item, Program, Error = Simple<Item>> {
     declaration().then_ignore(end()).map(Program::new)
 }
 
-pub fn parse(tokens: Vec<Token>) -> Result<Program> {
-    parser().parse(tokens).map_err(|err| format!("{err:?}"))
+pub fn parse(input: &str) -> Result<Program> {
+    parser()
+        .parse(indent_stream(input).collect::<String>())
+        .map_err(|err| format!("{err:?}"))
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::ast::macros::*;
-    use crate::tokenizer::tokenize;
     use crate::util::macros::*;
 
     fn parse_expr(input: &str) -> std::result::Result<Expr, Vec<chumsky::error::Simple<Item>>> {
         top_level_expression()
             .then_ignore(end())
-            .parse(dbg!(tokenize(input)))
+            .parse(dbg!(indent_stream(input).collect::<String>()))
     }
 
     fn parse_decl(
@@ -314,7 +312,7 @@ mod test {
     ) -> std::result::Result<Vec<Decl>, Vec<chumsky::error::Simple<Item>>> {
         declaration()
             .then_ignore(end())
-            .parse(dbg!(tokenize(input)))
+            .parse(dbg!(indent_stream(input).collect::<String>()))
     }
 
     #[test]
@@ -340,8 +338,7 @@ mod test {
         assert_ok!(parse_expr("!true"), not!(bool!(true)));
         assert_ok!(parse_expr("-1"), neg!(num!(1)));
 
-        // // No special whitespace handling in indent_parser
-        // assert_err!(parse_expr("1+2"));
+        assert_err!(parse_expr("1+2"));
 
         assert_ok!(parse_expr("1 + 2"), add!(num!(1), num!(2)));
         assert_ok!(parse_expr("2 - 1"), sub!(num!(2), num!(1)));
@@ -416,7 +413,8 @@ mod test {
             call!(foo(add!(num!(1), num!(2)), add!(num!(3), num!(4))))
         );
 
-        // assert_ok!(parse_expr("foo(1) + 2"), add!(call!(foo(num!(1))), num!(2)));
+        // Yay!!! This now works!
+        assert_ok!(parse_expr("foo(1) + 2"), add!(call!(foo(num!(1))), num!(2)));
     }
 
     #[test]
@@ -444,11 +442,12 @@ mod test {
             call!(foo(ident!(a), ident!(b), ident!(bar)))
         );
 
-        // Yoot allows for multiple blocks by first using a deep indent followed by a shallow indent.
-        assert_ok!(
-            parse_expr("foo\n    bar\n  baz"),
-            call!(foo(ident!(bar), ident!(baz)))
-        );
+        // // NOT ANYMORE!!!
+        // // Yoot allows for multiple blocks by first using a deep indent followed by a shallow indent.
+        // assert_ok!(
+        //     parse_expr("foo\n    bar\n  baz"),
+        //     call!(foo(ident!(bar), ident!(baz)))
+        // );
     }
 
     #[test]
@@ -533,8 +532,7 @@ mod test {
             vec![stm!(bool!(true)), stm!(bool!(false))]
         );
 
-        // // No special whitespace handling in indent_parser
-        // assert_err!(parse_decl("true;false"));
+        assert_err!(parse_decl("true;false"));
 
         assert_err!(parse_decl("true; ; false"));
         assert_err!(parse_decl("true;"));

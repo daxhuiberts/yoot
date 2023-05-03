@@ -28,12 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("SOURCE:\n{source}");
     }
 
-    let tokens = yoot::tokenize(&source);
-    if args.print_all || args.print_tokens {
-        println!("TOKENS: {tokens:#?}");
-    }
-
-    let program = yoot::parse(tokens)?;
+    let program = yoot::parse(&source)?;
     if args.print_all || args.print_ast {
         println!("PARSED PROGRAM: {program:#?}");
     }
