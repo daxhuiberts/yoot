@@ -1,5 +1,6 @@
 mod ast;
 mod binaryoot;
+mod indent_stream;
 mod interpreter;
 mod parser;
 mod tokenizer;
