@@ -186,18 +186,45 @@ fn top_level_expression() -> impl chumsky::Parser<Item, Expr, Error = Simple<Ite
             })
             .or(sub_expression())
     })
-    .map(|expr| match expr {
-        Expr {
-            kind: ExprKind::Call { name, args },
-        } if name == "if" && (args.len() == 2 || args.len() == 3) => Expr {
-            kind: ExprKind::If {
-                cond: Box::new(args[0].clone()),
-                then: Box::new(args[1].clone()),
-                else_: args.get(2).map(|else_| Box::new(else_.clone())),
+    .map(transform_calls)
+}
+
+fn transform_calls(expr: Expr) -> Expr {
+    match expr.kind {
+        ExprKind::Call { name, args } => {
+            let args: Vec<_> = args.into_iter().map(transform_calls).collect();
+
+            match name.as_str() {
+                "if" if (args.len() == 2 || args.len() == 3) => Expr {
+                    kind: ExprKind::If {
+                        cond: Box::new(args[0].clone()),
+                        then: Box::new(args[1].clone()),
+                        else_: args.get(2).map(|else_| Box::new(else_.clone())),
+                    },
+                },
+                _ => Expr {
+                    kind: ExprKind::Call { name, args },
+                },
+            }
+        }
+        ExprKind::UnOp { kind, expr } => Expr {
+            kind: ExprKind::UnOp {
+                kind,
+                expr: Box::new(transform_calls(*expr)),
             },
         },
-        expr => expr,
-    })
+        ExprKind::BinOp { kind, left, right } => Expr {
+            kind: ExprKind::BinOp {
+                kind,
+                left: Box::new(transform_calls(*left)),
+                right: Box::new(transform_calls(*right)),
+            },
+        },
+        ExprKind::Lit { .. } | ExprKind::Ident { .. } => expr,
+        ExprKind::If { .. } => {
+            panic!("should not exist here")
+        }
+    }
 }
 
 fn transform_smart_ifs(decls: Vec<Decl>) -> Vec<Decl> {
@@ -391,6 +418,11 @@ mod test {
         assert_ok!(
             parse_expr("if true, 1, 2"),
             if_!(bool!(true), num!(1), num!(2))
+        );
+
+        assert_ok!(
+            parse_expr("foo if(true, 1, 2)"),
+            call!(foo(if_!(bool!(true), num!(1), num!(2))))
         );
     }
 
