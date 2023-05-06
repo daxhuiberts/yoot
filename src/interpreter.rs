@@ -372,6 +372,12 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
                 Err(format!("Cannot find variable `{}` in scope", name))
             }
         }
+
+        ExprKind::Print { expr } => {
+            let value = eval(expr, vars)?;
+            println!("{value:?}");
+            Ok(Value::Nil)
+        }
     }
 }
 

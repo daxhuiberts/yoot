@@ -53,6 +53,9 @@ pub enum ExprKind<T> {
         name: String,
         args: Vec<T>,
     },
+    Print {
+        expr: Box<T>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -208,6 +211,16 @@ pub mod macros {
                 kind: ExprKind::Call {
                     name: stringify!($name).to_string(),
                     args: vec![$($args),*],
+                }
+            }
+        }
+    }
+
+    pubmacro! { print_,
+        ($expr:expr) => {
+            Expr {
+                kind: ExprKind::Print {
+                    expr: Box::new($expr),
                 }
             }
         }

@@ -202,6 +202,11 @@ fn transform_calls(expr: Expr) -> Expr {
                         else_: args.get(2).map(|else_| Box::new(else_.clone())),
                     },
                 },
+                "print" if args.len() == 1 => Expr {
+                    kind: ExprKind::Print {
+                        expr: Box::new(args[0].clone()),
+                    },
+                },
                 _ => Expr {
                     kind: ExprKind::Call { name, args },
                 },
@@ -221,7 +226,7 @@ fn transform_calls(expr: Expr) -> Expr {
             },
         },
         ExprKind::Lit { .. } | ExprKind::Ident { .. } => expr,
-        ExprKind::If { .. } => {
+        ExprKind::If { .. } | ExprKind::Print { .. } => {
             panic!("should not exist here")
         }
     }
@@ -447,6 +452,13 @@ mod test {
 
         // Yay!!! This now works!
         assert_ok!(parse_expr("foo(1) + 2"), add!(call!(foo(num!(1))), num!(2)));
+    }
+
+    #[test]
+    fn test_print_statement() {
+        assert_ok!(parse_expr("print nil"), print_!(nil!()));
+        assert_ok!(parse_expr("print true"), print_!(bool!(true)));
+        assert_ok!(parse_expr("print 1"), print_!(num!(1)));
     }
 
     #[test]

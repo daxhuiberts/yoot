@@ -291,6 +291,13 @@ fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
                 ty: function_ret_ty.clone(),
             })
         }
+
+        ExprKind::Print { expr } => Ok(TypedExpr {
+            kind: ExprKind::Print {
+                expr: Box::new(check_expr(expr, env)?),
+            },
+            ty: TySimple::Nil,
+        }),
     }
 }
 
