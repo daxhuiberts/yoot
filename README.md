@@ -4,6 +4,9 @@ Yoot is an experiment in programming language design and development as a result
 
 ### Todo
 
+- [ ] Add support for comments
+- [ ] Add support for updating variables
+- [ ] Add support for multi line functions
 - [ ] Add support for while statements
 - [ ] Implement type inference
 - [ ] Compile to Binaryen
@@ -16,11 +19,6 @@ Yoot is an experiment in programming language design and development as a result
 - [ ] Compile to LLVM
 - [ ] Transpile to Rust
   - [ ] Use rustc-plugin to hook into Rust?
-- [ ] Change language syntax
-  - [ ] ~~Change function definition to always require parentheses?~~
-  - [ ] Only allow functions in top level?
-  - [ ] Only allow assignments in functions?
-  - [ ] Start with a main function?
 - [ ] Work out new experimental block parser architecture
 
 ### Ideas
