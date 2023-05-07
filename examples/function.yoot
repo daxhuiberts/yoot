@@ -1,5 +1,5 @@
 foo = 3
 bar = 5
 add a b = a + b
-
-add(foo, bar) == 8
+result = add foo, bar
+result == 8
