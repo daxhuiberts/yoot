@@ -1,5 +1,6 @@
 foo = 3
 bar = 5
+# baz = 9
 add a b = a + b
 result = add foo, bar
 result == 8

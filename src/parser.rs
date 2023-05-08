@@ -277,7 +277,6 @@ fn declaration() -> impl chumsky::Parser<Item, Vec<Decl>, Error = Simple<Item>> 
         let expression = top_level_expression();
 
         let definition = declaration
-            .separated_by(just(NEWLINE).repeated().at_least(1))
             .delimited_by(just(OPEN_BLOCK), just(CLOSE_BLOCK))
             .map(transform_smart_ifs)
             .or(punct(" ").ignore_then(expression.clone().map(|expr| vec![Decl::Stm { expr }])));
@@ -308,11 +307,14 @@ fn declaration() -> impl chumsky::Parser<Item, Vec<Decl>, Error = Simple<Item>> 
         let statement = expression.map(|expr| Decl::Stm { expr });
 
         choice((assignment, function, statement))
+            .map(Some)
+            .or(punct("# ").then(none_of(NEWLINE).repeated()).map(|_| None))
+            .separated_by(choice((
+                punct("; ").ignored(),
+                just(NEWLINE).repeated().at_least(1).ignored(),
+            )))
+            .flatten()
     })
-    .separated_by(choice((
-        punct("; ").ignored(),
-        just(NEWLINE).repeated().at_least(1).ignored(),
-    )))
     .map(transform_smart_ifs)
     .then_ignore(just(NEWLINE).or_not())
 }
