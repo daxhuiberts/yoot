@@ -6,13 +6,16 @@ use super::typed_ast::*;
 use super::util::*;
 
 pub fn check(program: &Program) -> Result<TypedProgram> {
-    Ok(TypedProgram::new(check_decls(program.decls())?))
+    Ok(TypedProgram::new(check_decls(
+        program.decls(),
+        &mut HashMap::new(),
+    )?))
 }
 
-pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
+pub fn check_decls(decls: &[Decl], env: &mut HashMap<String, Ty>) -> Result<Vec<TypedDecl>> {
     decls
         .iter()
-        .map_with_context(HashMap::new(), |env, decl| match &decl {
+        .map_with_context(env, |env, decl| match &decl {
             Decl::Stm { expr } => {
                 let expr = check_expr(expr, env)?;
                 let ty = expr.ty.clone();
@@ -82,7 +85,7 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
                 if body.len() != 1 { return Err("Expect only 1 body decl".to_string()) }
                 let Decl::Stm { expr: body } = &body[0] else { return Err("Expect stm decl".to_string()) };
 
-                let expr = check_expr(body, &scoped_env)?;
+                let expr = check_expr(body, &mut scoped_env)?;
 
                 let provided_ty_ret = expr.ty.clone();
                 if provided_ty_ret != ty_ret {
@@ -104,7 +107,7 @@ pub fn check_decls(decls: &[Decl]) -> Result<Vec<TypedDecl>> {
         .collect()
 }
 
-fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
+fn check_expr(expr: &Expr, env: &mut HashMap<String, Ty>) -> Result<TypedExpr> {
     match &expr.kind {
         ExprKind::Lit { lit: LitKind::Nil } => Ok(TypedExpr {
             kind: ExprKind::Lit { lit: LitKind::Nil },
@@ -252,7 +255,7 @@ fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
         }
 
         ExprKind::Call { name, args } => {
-            let (function_args_ty, function_ret_ty) = match env.get(name) {
+            let (function_args_ty, function_ret_ty) = match env.get(name).cloned() {
                 Some(Ty::Function(TyFunction { args, ret })) => Ok((args, ret)),
                 Some(Ty::Simple(..)) => Err(format!("{name} is not a function, but a value")),
                 None => Err(format!("{name} not in env")),
@@ -273,7 +276,7 @@ fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
                 .map(|(index, (arg, expected_ty))| {
                     let expr = check_expr(arg, env)?;
                     let provided_ty = expr.ty.clone();
-                    if provided_ty != *expected_ty {
+                    if provided_ty != expected_ty {
                         Err(format!(
                             "Expected {expected_ty:?} for argument {index}, got {provided_ty:?}"
                         ))
@@ -288,7 +291,7 @@ fn check_expr(expr: &Expr, env: &HashMap<String, Ty>) -> Result<TypedExpr> {
                     name: name.clone(),
                     args,
                 },
-                ty: function_ret_ty.clone(),
+                ty: function_ret_ty,
             })
         }
 
@@ -310,20 +313,20 @@ mod test {
 
     #[test]
     fn test_check_expr() {
-        assert_eq!(check_expr(&nil!(), &eenv!()), Ok(tnil!()));
+        assert_eq!(check_expr(&nil!(), &mut eenv!()), Ok(tnil!()));
 
         assert_eq!(
-            check_expr(&ident!(a), &eenv!(a => Ty::Simple(TySimple::Bool))),
+            check_expr(&ident!(a), &mut eenv!(a => Ty::Simple(TySimple::Bool))),
             Ok(tident!(a, Bool))
         );
 
         assert_eq!(
-            check_expr(&add!(num!(1), num!(2)), &eenv!()),
+            check_expr(&add!(num!(1), num!(2)), &mut eenv!()),
             Ok(tadd!(tnum!(1), tnum!(2), Num))
         );
 
         assert_eq!(
-            check_expr(&add!(num!(1), nil!()), &eenv!()),
+            check_expr(&add!(num!(1), nil!()), &mut eenv!()),
             Err("expected same type on both sides: left: Num; right: Nil".to_string())
         );
     }
@@ -331,17 +334,17 @@ mod test {
     #[test]
     fn test_check_expr_if() {
         assert_eq!(
-            check_expr(&if_!(bool!(true), nil!()), &eenv!()),
+            check_expr(&if_!(bool!(true), nil!()), &mut eenv!()),
             Ok(tif!(tbool!(true), tnil!(); Nil))
         );
 
         assert_eq!(
-            check_expr(&if_!(bool!(true), num!(1), num!(2)), &eenv!()),
+            check_expr(&if_!(bool!(true), num!(1), num!(2)), &mut eenv!()),
             Ok(tif!(tbool!(true), tnum!(1), tnum!(2); Num))
         );
 
         assert_eq!(
-            check_expr(&if_!(bool!(true), num!(1)), &eenv!()),
+            check_expr(&if_!(bool!(true), num!(1)), &mut eenv!()),
             Err("expect then branch to be of type nil: got Num".into())
         );
     }
@@ -351,7 +354,7 @@ mod test {
         assert_eq!(
             check_expr(
                 &call!(foo(num!(1))),
-                &eenv!(foo => Ty::Function(TyFunction { args: vec![TySimple::Num], ret: TySimple::Bool }))
+                &mut eenv!(foo => Ty::Function(TyFunction { args: vec![TySimple::Num], ret: TySimple::Bool }))
             ),
             Ok(tcall!(foo(tnum!(1)); Bool))
         );
@@ -359,7 +362,7 @@ mod test {
         assert_eq!(
             check_expr(
                 &call!(foo(num!(1))),
-                &eenv!(foo => Ty::Function(TyFunction { args: vec![TySimple::Bool], ret: TySimple::Bool }))
+                &mut eenv!(foo => Ty::Function(TyFunction { args: vec![TySimple::Bool], ret: TySimple::Bool }))
             ),
             Err("Expected Bool for argument 0, got Num".into())
         );
@@ -367,7 +370,7 @@ mod test {
         assert_eq!(
             check_expr(
                 &call!(foo(num!(1))),
-                &eenv!(foo => Ty::Function(TyFunction { args: vec![], ret: TySimple::Bool }))
+                &mut eenv!(foo => Ty::Function(TyFunction { args: vec![], ret: TySimple::Bool }))
             ),
             Err("expected 0 arguments for foo, got 1".into())
         );
@@ -376,17 +379,17 @@ mod test {
     #[test]
     fn test_check_decls_ass() {
         assert_eq!(
-            check_decls(&vec![ass!(foo = num!(1))]),
+            check_decls(&vec![ass!(foo = num!(1))], &mut eenv!()),
             Ok(vec![tass!(foo: Num = tnum!(1))])
         );
 
         assert_eq!(
-            check_decls(&vec![ass!(foo: Num = num!(1))]),
+            check_decls(&vec![ass!(foo: Num = num!(1))], &mut eenv!()),
             Ok(vec![tass!(foo: Num = tnum!(1))])
         );
 
         assert_eq!(
-            check_decls(&vec![ass!(foo: Nil = num!(1))]),
+            check_decls(&vec![ass!(foo: Nil = num!(1))], &mut eenv!()),
             Err("expected Some(Nil), got Num".into())
         );
     }
@@ -394,19 +397,28 @@ mod test {
     #[test]
     fn test_check_decls_fun() {
         assert_eq!(
-            check_decls(&vec![fun!(inc(val:Num):Num => add!(ident!(val), num!(1)))]),
+            check_decls(
+                &vec![fun!(inc(val:Num):Num => add!(ident!(val), num!(1)))],
+                &mut eenv!()
+            ),
             Ok(vec![tfun!(
                 inc(val:Num):Num => tadd!(tident!(val, Num), tnum!(1), Num)
             )])
         );
 
         assert_eq!(
-            check_decls(&vec![fun!(inc(val:Bool):Num => add!(ident!(val), num!(1)))]),
+            check_decls(
+                &vec![fun!(inc(val:Bool):Num => add!(ident!(val), num!(1)))],
+                &mut eenv!()
+            ),
             Err("expected same type on both sides: left: Bool; right: Num".into())
         );
 
         assert_eq!(
-            check_decls(&vec![fun!(inc(val:Num):Bool => add!(ident!(val), num!(1)))]),
+            check_decls(
+                &vec![fun!(inc(val:Num):Bool => add!(ident!(val), num!(1)))],
+                &mut eenv!()
+            ),
             Err("Expected Bool return value, got Num".into())
         );
     }

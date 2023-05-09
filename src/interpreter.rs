@@ -21,15 +21,18 @@ enum Kind {
 }
 
 pub fn execute(program: &Program) -> Result<Value> {
-    program
-        .decls()
+    eval_decls(program.decls(), &mut Vec::new())
+}
+
+fn eval_decls(decls: &[Decl], vars: &mut Vec<Var>) -> Result<Value> {
+    decls
         .iter()
-        .try_fold_with_context(Value::Nil, vec![], |vars, decl| match decl {
+        .try_fold_with_context(Value::Nil, vars, |vars, decl| match decl {
             Decl::Ass { name, expr } => {
                 if expr.len() != 1 { return Err("Expect only 1 body decl".to_string()) }
                 let Decl::Stm { expr } = &expr[0] else { return Err("Expect stm decl".to_string()) };
 
-                let value = eval(expr, vars)?;
+                let value = eval_expr(expr, vars)?;
                 vars.push(Var {
                     name: name.0.clone(),
                     kind: Kind::Val { value },
@@ -54,11 +57,11 @@ pub fn execute(program: &Program) -> Result<Value> {
                 });
                 Ok(Value::Nil)
             }
-            Decl::Stm { expr } => eval(expr, vars),
+            Decl::Stm { expr } => eval_expr(expr, vars),
         })
 }
 
-fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
+fn eval_expr(expr: &Expr, vars: &[Var]) -> Result<Value> {
     match &expr.kind {
         ExprKind::Lit { lit: LitKind::Nil } => Ok(Value::Nil),
 
@@ -86,7 +89,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             kind: UnOpKind::Neg,
             expr,
         } => {
-            let val = eval(expr, vars)?;
+            let val = eval_expr(expr, vars)?;
             if let Value::Num(val) = val {
                 Ok(Value::Num(-val))
             } else {
@@ -98,7 +101,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             kind: UnOpKind::Not,
             expr,
         } => {
-            let val = eval(expr, vars)?;
+            let val = eval_expr(expr, vars)?;
             if let Value::Bool(val) = val {
                 Ok(Value::Bool(!val))
             } else {
@@ -111,8 +114,8 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             left,
             right,
         } => {
-            let left_val = eval(left, vars)?;
-            let right_val = eval(right, vars)?;
+            let left_val = eval_expr(left, vars)?;
+            let right_val = eval_expr(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Num(left + right)),
                 _ => Err(format!(
@@ -126,8 +129,8 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             left,
             right,
         } => {
-            let left_val = eval(left, vars)?;
-            let right_val = eval(right, vars)?;
+            let left_val = eval_expr(left, vars)?;
+            let right_val = eval_expr(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Num(left - right)),
                 _ => Err(format!(
@@ -141,8 +144,8 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             left,
             right,
         } => {
-            let left_val = eval(left, vars)?;
-            let right_val = eval(right, vars)?;
+            let left_val = eval_expr(left, vars)?;
+            let right_val = eval_expr(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Num(left * right)),
                 _ => Err(format!(
@@ -156,8 +159,8 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             left,
             right,
         } => {
-            let left_val = eval(left, vars)?;
-            let right_val = eval(right, vars)?;
+            let left_val = eval_expr(left, vars)?;
+            let right_val = eval_expr(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Num(left / right)),
                 _ => Err(format!(
@@ -171,8 +174,8 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             left,
             right,
         } => {
-            let left_val = eval(left, vars)?;
-            let right_val = eval(right, vars)?;
+            let left_val = eval_expr(left, vars)?;
+            let right_val = eval_expr(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Nil, Value::Nil) => Ok(Value::Bool(true)),
                 (Value::Bool(left), Value::Bool(right)) => Ok(Value::Bool(left == right)),
@@ -188,8 +191,8 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             left,
             right,
         } => {
-            let left_val = eval(left, vars)?;
-            let right_val = eval(right, vars)?;
+            let left_val = eval_expr(left, vars)?;
+            let right_val = eval_expr(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Nil, Value::Nil) => Ok(Value::Bool(false)),
                 (Value::Bool(left), Value::Bool(right)) => Ok(Value::Bool(left != right)),
@@ -205,8 +208,8 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             left,
             right,
         } => {
-            let left_val = eval(left, vars)?;
-            let right_val = eval(right, vars)?;
+            let left_val = eval_expr(left, vars)?;
+            let right_val = eval_expr(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left < right)),
                 _ => Err(format!(
@@ -220,8 +223,8 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             left,
             right,
         } => {
-            let left_val = eval(left, vars)?;
-            let right_val = eval(right, vars)?;
+            let left_val = eval_expr(left, vars)?;
+            let right_val = eval_expr(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left <= right)),
                 _ => Err(format!(
@@ -235,8 +238,8 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             left,
             right,
         } => {
-            let left_val = eval(left, vars)?;
-            let right_val = eval(right, vars)?;
+            let left_val = eval_expr(left, vars)?;
+            let right_val = eval_expr(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left > right)),
                 _ => Err(format!(
@@ -250,8 +253,8 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             left,
             right,
         } => {
-            let left_val = eval(left, vars)?;
-            let right_val = eval(right, vars)?;
+            let left_val = eval_expr(left, vars)?;
+            let right_val = eval_expr(right, vars)?;
             match (&left_val, &right_val) {
                 (Value::Num(left), Value::Num(right)) => Ok(Value::Bool(left >= right)),
                 _ => Err(format!(
@@ -265,10 +268,10 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             left,
             right,
         } => {
-            let left_val = eval(left, vars)?;
+            let left_val = eval_expr(left, vars)?;
             if let Value::Bool(left_val) = left_val {
                 if left_val {
-                    let right_val = eval(right, vars)?;
+                    let right_val = eval_expr(right, vars)?;
                     if let Value::Bool(right_val) = right_val {
                         Ok(Value::Bool(right_val))
                     } else {
@@ -291,12 +294,12 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
             left,
             right,
         } => {
-            let left_val = eval(left, vars)?;
+            let left_val = eval_expr(left, vars)?;
             if let Value::Bool(left_val) = left_val {
                 if left_val {
                     Ok(Value::Bool(true))
                 } else {
-                    let right_val = eval(right, vars)?;
+                    let right_val = eval_expr(right, vars)?;
                     if let Value::Bool(right_val) = right_val {
                         Ok(Value::Bool(right_val))
                     } else {
@@ -313,14 +316,14 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
         }
 
         ExprKind::If { cond, then, else_ } => {
-            let cond_val = eval(cond, vars)?;
+            let cond_val = eval_expr(cond, vars)?;
 
             if let Value::Bool(cond_val) = cond_val {
                 if cond_val {
-                    let then_val = eval(then, vars)?;
+                    let then_val = eval_expr(then, vars)?;
                     Ok(then_val)
                 } else if let Some(else_) = else_ {
-                    let else_val = eval(else_, vars)?;
+                    let else_val = eval_expr(else_, vars)?;
                     Ok(else_val)
                 } else {
                     Ok(Value::Nil)
@@ -349,14 +352,14 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
                                 Ok(Var {
                                     name: name.clone(),
                                     kind: Kind::Val {
-                                        value: eval(arg, vars)?,
+                                        value: eval_expr(arg, vars)?,
                                     },
                                 })
                             })
                             .collect::<Result<_>>()?;
                         let mut cloned_vars = vars.to_owned();
                         cloned_vars.append(&mut args);
-                        eval(body, &cloned_vars)
+                        eval_expr(body, &cloned_vars)
                     } else {
                         Err(format!(
                             "Wrong number of arguments for function `{}`: expected {}, found {}",
@@ -374,7 +377,7 @@ fn eval(expr: &Expr, vars: &[Var]) -> Result<Value> {
         }
 
         ExprKind::Print { expr } => {
-            let value = eval(expr, vars)?;
+            let value = eval_expr(expr, vars)?;
             println!("{value:?}");
             Ok(Value::Nil)
         }
@@ -386,52 +389,44 @@ mod test {
     use super::*;
     use crate::ast::macros::*;
 
+    fn eval_decls(decls: &[Decl]) -> Result<Value> {
+        super::eval_decls(decls, &mut Vec::new())
+    }
+
+    fn eval_expr(expr: &Expr) -> Result<Value> {
+        super::eval_expr(expr, &Vec::new())
+    }
+
     #[test]
     fn test_eval() {
         assert_eq!(
-            eval(&add!(num!(1), bool!(true)), &Vec::new()),
+            eval_expr(&add!(num!(1), bool!(true))),
             Err("expect num on both sides: Num(1) + Bool(true)".into())
         );
 
-        assert_eq!(
-            eval(&not!(bool!(true)), &Vec::new()),
-            Ok(Value::Bool(false))
-        );
-
-        assert_eq!(eval(&neg!(num!(3)), &Vec::new()), Ok(Value::Num(-3)));
+        assert_eq!(eval_expr(&not!(bool!(true))), Ok(Value::Bool(false)));
+        assert_eq!(eval_expr(&neg!(num!(3))), Ok(Value::Num(-3)));
 
         assert_eq!(
-            eval(
-                &or!(and!(bool!(true), bool!(false)), bool!(true)),
-                &Vec::new()
-            ),
+            eval_expr(&or!(and!(bool!(true), bool!(false)), bool!(true))),
             Ok(Value::Bool(true))
         );
 
         assert_eq!(
-            eval(
-                &sub!(add!(num!(1), mul!(num!(2), num!(3))), num!(4)),
-                &Vec::new()
-            ),
+            eval_expr(&sub!(add!(num!(1), mul!(num!(2), num!(3))), num!(4))),
             Ok(Value::Num(3))
         );
 
         assert_eq!(
-            eval(
-                &mul!(add!(num!(1), num!(2)), sub!(num!(3), num!(4))),
-                &Vec::new()
-            ),
+            eval_expr(&mul!(add!(num!(1), num!(2)), sub!(num!(3), num!(4)))),
             Ok(Value::Num(-3))
         );
 
         assert_eq!(
-            eval(
-                &or!(
-                    eq!(lte!(add!(num!(1), num!(2)), neg!(num!(4))), bool!(false)),
-                    not!(bool!(true))
-                ),
-                &Vec::new()
-            ),
+            eval_expr(&or!(
+                eq!(lte!(add!(num!(1), num!(2)), neg!(num!(4))), bool!(false)),
+                not!(bool!(true))
+            )),
             Ok(Value::Bool(true))
         );
     }
@@ -439,49 +434,44 @@ mod test {
     #[test]
     fn test_execute_if_statement() {
         assert_eq!(
-            eval(&if_!(bool!(true), num!(1), num!(2)), &Vec::new()),
+            eval_expr(&if_!(bool!(true), num!(1), num!(2))),
             Ok(Value::Num(1))
         );
 
         assert_eq!(
-            eval(&if_!(bool!(false), num!(1), num!(2)), &Vec::new()),
+            eval_expr(&if_!(bool!(false), num!(1), num!(2))),
             Ok(Value::Num(2))
         );
 
-        assert_eq!(
-            eval(&if_!(bool!(true), num!(1)), &Vec::new()),
-            Ok(Value::Num(1))
-        );
+        assert_eq!(eval_expr(&if_!(bool!(true), num!(1))), Ok(Value::Num(1)));
+        assert_eq!(eval_expr(&if_!(bool!(false), num!(1))), Ok(Value::Nil));
 
         assert_eq!(
-            eval(&if_!(bool!(false), num!(1)), &Vec::new()),
-            Ok(Value::Nil)
-        );
-
-        assert_eq!(
-            eval(&if_!(nil!(), num!(1)), &Vec::new()),
+            eval_expr(&if_!(nil!(), num!(1))),
             Err("expect bool as condition for if statement: Nil".into())
         );
     }
 
     #[test]
     fn test_execute_assignments() {
-        let program = Program::new(vec![
-            ass!(foo = num!(1)),
-            ass!(bar = num!(2)),
-            stm!(eq!(add!(ident!(foo), ident!(bar)), num!(3))),
-        ]);
-
-        assert_eq!(execute(&program), Ok(Value::Bool(true)));
+        assert_eq!(
+            eval_decls(&vec![
+                ass!(foo = num!(1)),
+                ass!(bar = num!(2)),
+                stm!(eq!(add!(ident!(foo), ident!(bar)), num!(3))),
+            ]),
+            Ok(Value::Bool(true))
+        );
     }
 
     #[test]
     fn test_execute_function_call() {
-        let program = Program::new(vec![
-            fun!(add(a, b) => add!(ident!(a), ident!(b))),
-            stm!(call!(add(num!(1), num!(2)))),
-        ]);
-
-        assert_eq!(execute(&program), Ok(Value::Num(3)));
+        assert_eq!(
+            eval_decls(&vec![
+                fun!(add(a, b) => add!(ident!(a), ident!(b))),
+                stm!(call!(add(num!(1), num!(2)))),
+            ]),
+            Ok(Value::Num(3))
+        );
     }
 }
