@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::ast::*;
 use super::util::*;
 
@@ -9,22 +11,16 @@ pub enum Value {
 }
 
 #[derive(Clone, Debug)]
-struct Var {
-    name: String,
-    kind: Kind,
-}
-
-#[derive(Clone, Debug)]
-enum Kind {
+enum Var {
     Val { value: Value },
     Fun { args: Vec<String>, body: Expr },
 }
 
 pub fn execute(program: &Program) -> Result<Value> {
-    eval_decls(program.decls(), &mut Vec::new())
+    eval_decls(program.decls(), &mut HashMap::new())
 }
 
-fn eval_decls(decls: &[Decl], vars: &mut Vec<Var>) -> Result<Value> {
+fn eval_decls(decls: &[Decl], vars: &mut HashMap<String, Var>) -> Result<Value> {
     decls
         .iter()
         .try_fold_with_context(Value::Nil, vars, |vars, decl| match decl {
@@ -33,10 +29,8 @@ fn eval_decls(decls: &[Decl], vars: &mut Vec<Var>) -> Result<Value> {
                 let Decl::Stm { expr } = &expr[0] else { return Err("Expect stm decl".to_string()) };
 
                 let value = eval_expr(expr, vars)?;
-                vars.push(Var {
-                    name: name.0.clone(),
-                    kind: Kind::Val { value },
-                });
+                vars.insert(name.0.clone(), Var::Val { value });
+
                 Ok(Value::Nil)
             }
             Decl::Fun {
@@ -48,20 +42,20 @@ fn eval_decls(decls: &[Decl], vars: &mut Vec<Var>) -> Result<Value> {
                 if body.len() != 1 { return Err("Expect only 1 body decl".to_string()) }
                 let Decl::Stm { expr: body } = &body[0] else { return Err("Expect stm decl".to_string()) };
 
-                vars.push(Var {
-                    name: name.clone(),
-                    kind: Kind::Fun {
+                vars.insert(
+                    name.clone(),
+                    Var::Fun {
                         args: args.iter().map(|arg| arg.0.clone()).collect(),
                         body: body.clone(),
                     },
-                });
+                );
                 Ok(Value::Nil)
             }
             Decl::Stm { expr } => eval_expr(expr, vars),
         })
 }
 
-fn eval_expr(expr: &Expr, vars: &[Var]) -> Result<Value> {
+fn eval_expr(expr: &Expr, vars: &mut HashMap<String, Var>) -> Result<Value> {
     match &expr.kind {
         ExprKind::Lit { lit: LitKind::Nil } => Ok(Value::Nil),
 
@@ -74,8 +68,8 @@ fn eval_expr(expr: &Expr, vars: &[Var]) -> Result<Value> {
         } => Ok(Value::Num(*val)),
 
         ExprKind::Ident { name } => {
-            if let Some(Var { kind, .. }) = vars.iter().rev().find(|var| var.name == *name) {
-                if let Kind::Val { value } = kind {
+            if let Some(var) = vars.get(name) {
+                if let Var::Val { value } = var {
                     Ok(value.clone())
                 } else {
                     Err(format!("Variable `{}` is a function, not a value", name))
@@ -336,30 +330,29 @@ fn eval_expr(expr: &Expr, vars: &[Var]) -> Result<Value> {
         }
 
         ExprKind::Call { name, args } => {
-            let var = vars.iter().rev().find(|var| var.name == *name);
+            // TODO: function vars should have a reference to the function declaration.
+            let var = vars.get(name).cloned();
 
-            if let Some(Var { kind, .. }) = var {
-                if let Kind::Fun {
+            if let Some(var) = var {
+                if let Var::Fun {
                     args: arg_names,
                     body,
-                } = kind
+                } = var
                 {
                     if arg_names.len() == args.len() {
-                        let mut args = args
+                        let mut scoped_vars = args
                             .iter()
-                            .zip(arg_names.iter())
+                            .zip(arg_names.into_iter())
                             .map(|(arg, name)| {
-                                Ok(Var {
-                                    name: name.clone(),
-                                    kind: Kind::Val {
+                                Ok((
+                                    name,
+                                    Var::Val {
                                         value: eval_expr(arg, vars)?,
                                     },
-                                })
+                                ))
                             })
                             .collect::<Result<_>>()?;
-                        let mut cloned_vars = vars.to_owned();
-                        cloned_vars.append(&mut args);
-                        eval_expr(body, &cloned_vars)
+                        eval_expr(&body, &mut scoped_vars)
                     } else {
                         Err(format!(
                             "Wrong number of arguments for function `{}`: expected {}, found {}",
@@ -390,11 +383,11 @@ mod test {
     use crate::ast::macros::*;
 
     fn eval_decls(decls: &[Decl]) -> Result<Value> {
-        super::eval_decls(decls, &mut Vec::new())
+        super::eval_decls(decls, &mut HashMap::new())
     }
 
     fn eval_expr(expr: &Expr) -> Result<Value> {
-        super::eval_expr(expr, &Vec::new())
+        super::eval_expr(expr, &mut HashMap::new())
     }
 
     #[test]
