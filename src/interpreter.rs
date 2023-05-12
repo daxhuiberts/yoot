@@ -13,7 +13,7 @@ pub enum Value {
 #[derive(Clone, Debug)]
 enum Var {
     Val { value: Value },
-    Fun { args: Vec<String>, body: Expr },
+    Fun { args: Vec<String>, body: Vec<Decl> },
 }
 
 pub fn execute(program: &Program) -> Result<Value> {
@@ -25,12 +25,8 @@ fn eval_decls(decls: &[Decl], vars: &mut HashMap<String, Var>) -> Result<Value> 
         .iter()
         .try_fold_with_context(Value::Nil, vars, |vars, decl| match decl {
             Decl::Ass { name, expr } => {
-                if expr.len() != 1 { return Err("Expect only 1 body decl".to_string()) }
-                let Decl::Stm { expr } = &expr[0] else { return Err("Expect stm decl".to_string()) };
-
-                let value = eval_expr(expr, vars)?;
+                let value = eval_decls(expr, &mut vars.clone())?;
                 vars.insert(name.0.clone(), Var::Val { value });
-
                 Ok(Value::Nil)
             }
             Decl::Fun {
@@ -39,9 +35,6 @@ fn eval_decls(decls: &[Decl], vars: &mut HashMap<String, Var>) -> Result<Value> 
                 ret: _ret,
                 body,
             } => {
-                if body.len() != 1 { return Err("Expect only 1 body decl".to_string()) }
-                let Decl::Stm { expr: body } = &body[0] else { return Err("Expect stm decl".to_string()) };
-
                 vars.insert(
                     name.clone(),
                     Var::Fun {
@@ -352,7 +345,7 @@ fn eval_expr(expr: &Expr, vars: &mut HashMap<String, Var>) -> Result<Value> {
                                 ))
                             })
                             .collect::<Result<_>>()?;
-                        eval_expr(&body, &mut scoped_vars)
+                        eval_decls(&body, &mut scoped_vars)
                     } else {
                         Err(format!(
                             "Wrong number of arguments for function `{}`: expected {}, found {}",

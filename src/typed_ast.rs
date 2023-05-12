@@ -58,6 +58,16 @@ pub enum TypedDecl {
     },
 }
 
+impl TypedDecl {
+    pub fn ty(&self) -> Ty {
+        match self {
+            TypedDecl::Stm { ty, .. } => Ty::Simple(ty.clone()),
+            TypedDecl::Ass { ty, .. } => Ty::Simple(ty.clone()),
+            TypedDecl::Fun { ty, .. } => Ty::Function(ty.clone()),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypedProgram(Vec<TypedDecl>);
 

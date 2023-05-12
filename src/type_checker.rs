@@ -27,15 +27,15 @@ pub fn check_decls(decls: &[Decl], env: &mut HashMap<String, Ty>) -> Result<Vec<
                 name: (name, expected_type),
                 expr,
             } => {
-                if expr.len() != 1 { return Err("Expect only 1 body decl".to_string()) }
-                let Decl::Stm { expr } = &expr[0] else { return Err("Expect stm decl".to_string()) };
-
                 let expected_type = expected_type
                     .clone()
                     .map(|exp_ty| TySimple::from_str(&exp_ty))
                     .transpose()?;
-                let expr = check_expr(expr, env)?;
-                let ty = expr.ty.clone();
+                let decls = check_decls(expr, &mut env.clone())?;
+                let ty = match decls.last().unwrap().ty() {
+                    Ty::Simple(ty) => ty,
+                    Ty::Function(_) => TySimple::Nil,
+                };
                 if expected_type.clone().map_or(false, |ex| ex != ty) {
                     return Err(format!("expected {expected_type:?}, got {ty:?}"));
                 }
@@ -44,7 +44,7 @@ pub fn check_decls(decls: &[Decl], env: &mut HashMap<String, Ty>) -> Result<Vec<
 
                 Ok(TypedDecl::Ass {
                     name: name.clone(),
-                    expr: vec![TypedDecl::Stm { expr, ty: ty.clone() }],
+                    expr: decls,
                     ty,
                 })
             }
@@ -73,8 +73,8 @@ pub fn check_decls(decls: &[Decl], env: &mut HashMap<String, Ty>) -> Result<Vec<
                     ret: ty_ret.clone(),
                 };
 
-                let mut scoped_env = env.clone();
-                scoped_env.insert(name.clone(), Ty::Function(ty_function.clone()));
+                let mut scoped_env = HashMap::new();
+                scoped_env.insert(name.clone(), Ty::Function(ty_function.clone())); // allows recursion
                 scoped_env.extend(
                     args.iter()
                         .cloned()
@@ -82,12 +82,11 @@ pub fn check_decls(decls: &[Decl], env: &mut HashMap<String, Ty>) -> Result<Vec<
                         .collect::<HashMap<_, _>>(),
                 );
 
-                if body.len() != 1 { return Err("Expect only 1 body decl".to_string()) }
-                let Decl::Stm { expr: body } = &body[0] else { return Err("Expect stm decl".to_string()) };
-
-                let expr = check_expr(body, &mut scoped_env)?;
-
-                let provided_ty_ret = expr.ty.clone();
+                let decls = check_decls(body, &mut scoped_env)?;
+                let provided_ty_ret = match decls.last().unwrap().ty() {
+                    Ty::Simple(ty) => ty,
+                    Ty::Function(_) => TySimple::Nil,
+                };
                 if provided_ty_ret != ty_ret {
                     return Err(format!(
                         "Expected {ty_ret:?} return value, got {provided_ty_ret:?}"
@@ -99,7 +98,7 @@ pub fn check_decls(decls: &[Decl], env: &mut HashMap<String, Ty>) -> Result<Vec<
                 Ok(TypedDecl::Fun {
                     name: name.clone(),
                     args,
-                    body: vec![TypedDecl::Stm { expr, ty: ty_ret }],
+                    body: decls,
                     ty: ty_function,
                 })
             }
