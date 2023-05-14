@@ -35,7 +35,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let typed_program = yoot::type_check(&program);
     if args.print_all || args.print_typed_ast {
-        println!("TYPED PROGRAM: {typed_program:#?}");
+        if let Ok(typed_program) = &typed_program {
+            println!("TYPED PROGRAM: {typed_program:#?}");
+        }
     }
 
     if !args.no_interpret {

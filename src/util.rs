@@ -24,18 +24,17 @@ pub trait IterExt: Iterator {
     fn try_fold_with_context<B, E, F, C>(
         &mut self,
         init: B,
-        context: C,
+        mut context: C,
         mut f: F,
     ) -> std::result::Result<B, E>
     where
         Self: Sized,
         F: FnMut(&mut C, Self::Item) -> std::result::Result<B, E>,
     {
-        self.try_fold((init, context), |(_value, mut context), item| {
+        self.try_fold(init, move |_value, item| {
             let value = f(&mut context, item)?;
-            Ok((value, context))
+            Ok(value)
         })
-        .map(|(value, _)| value)
     }
 
     fn tuple_merger<F>(self, f: F) -> TupleMerger<Self, Self::Item, F>
