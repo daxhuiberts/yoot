@@ -37,22 +37,6 @@ fn sub_expression() -> impl chumsky::Parser<Item, Expr, Error = Simple<Item>> + 
             kind: ExprKind::Lit { lit },
         });
 
-        // let if_ = just("if")
-        //     .ignore_then(
-        //         expr.clone()
-        //             .then_ignore(punct(", "))
-        //             .then(expr.clone())
-        //             .then(punct(", ").ignore_then(expr.clone()).or_not())
-        //             .delimited_by(just(OPEN_PAREN), just(CLOSE_PAREN)),
-        //     )
-        //     .map(|((cond, then), else_)| Expr {
-        //         kind: ExprKind::If {
-        //             cond: Box::new(cond),
-        //             then: Box::new(then),
-        //             else_: else_.map(Box::new),
-        //         },
-        //     });
-
         let call = ident()
             .then(
                 expr.clone()
@@ -186,90 +170,6 @@ fn top_level_expression() -> impl chumsky::Parser<Item, Expr, Error = Simple<Ite
             })
             .or(sub_expression())
     })
-    .map(transform_calls)
-}
-
-fn transform_calls(expr: Expr) -> Expr {
-    match expr.kind {
-        ExprKind::Call { name, args } => {
-            let args: Vec<_> = args.into_iter().map(transform_calls).collect();
-
-            match name.as_str() {
-                "if" if (args.len() == 2 || args.len() == 3) => Expr {
-                    kind: ExprKind::If {
-                        cond: Box::new(args[0].clone()),
-                        then: Box::new(args[1].clone()),
-                        else_: args.get(2).map(|else_| Box::new(else_.clone())),
-                    },
-                },
-                "print" if args.len() == 1 => Expr {
-                    kind: ExprKind::Print {
-                        expr: Box::new(args[0].clone()),
-                    },
-                },
-                _ => Expr {
-                    kind: ExprKind::Call { name, args },
-                },
-            }
-        }
-        ExprKind::UnOp { kind, expr } => Expr {
-            kind: ExprKind::UnOp {
-                kind,
-                expr: Box::new(transform_calls(*expr)),
-            },
-        },
-        ExprKind::BinOp { kind, left, right } => Expr {
-            kind: ExprKind::BinOp {
-                kind,
-                left: Box::new(transform_calls(*left)),
-                right: Box::new(transform_calls(*right)),
-            },
-        },
-        ExprKind::Lit { .. } | ExprKind::Ident { .. } => expr,
-        ExprKind::If { .. } | ExprKind::Print { .. } => {
-            panic!("should not exist here")
-        }
-    }
-}
-
-fn transform_smart_ifs(decls: Vec<Decl>) -> Vec<Decl> {
-    decls
-        .into_iter()
-        .tuple_merger(|a, b| match (a, b) {
-            (
-                Decl::Stm {
-                    expr:
-                        Expr {
-                            kind:
-                                ExprKind::If {
-                                    cond,
-                                    then,
-                                    else_: None,
-                                },
-                        },
-                },
-                Decl::Stm {
-                    expr:
-                        Expr {
-                            kind:
-                                ExprKind::Call {
-                                    name: name_b,
-                                    args: args_b,
-                                },
-                        },
-                },
-            ) if name_b == "else" && args_b.len() == 1 => Some(Decl::Stm {
-                expr: Expr {
-                    kind: ExprKind::If {
-                        cond: cond.clone(),
-                        then: then.clone(),
-                        else_: Some(Box::new(args_b[0].clone())),
-                    },
-                },
-            }),
-            _ => None,
-        })
-        .collect::<Vec<_>>()
 }
 
 fn declaration() -> impl chumsky::Parser<Item, Vec<Decl>, Error = Simple<Item>> {
@@ -278,7 +178,6 @@ fn declaration() -> impl chumsky::Parser<Item, Vec<Decl>, Error = Simple<Item>> 
 
         let definition = declaration
             .delimited_by(just(OPEN_BLOCK), just(CLOSE_BLOCK))
-            .map(transform_smart_ifs)
             .or(punct(" ").ignore_then(expression.clone().map(|expr| vec![Decl::Stm { expr }])));
 
         let assignment = ident()
@@ -315,17 +214,127 @@ fn declaration() -> impl chumsky::Parser<Item, Vec<Decl>, Error = Simple<Item>> 
             )))
             .flatten()
     })
-    .map(transform_smart_ifs)
     .then_ignore(just(NEWLINE).or_not())
 }
 
-pub fn parser() -> impl chumsky::Parser<Item, Program, Error = Simple<Item>> {
-    declaration().then_ignore(end()).map(Program::new)
+fn transform_expr(expr: Expr) -> Expr {
+    match expr.kind {
+        ExprKind::Call { name, args } => {
+            let args: Vec<_> = args.into_iter().map(transform_expr).collect();
+
+            match name.as_str() {
+                "if" if (args.len() == 2 || args.len() == 3) => Expr {
+                    kind: ExprKind::If {
+                        cond: Box::new(args[0].clone()),
+                        then: Box::new(args[1].clone()),
+                        else_: args.get(2).map(|else_| Box::new(else_.clone())),
+                    },
+                },
+                "print" if args.len() == 1 => Expr {
+                    kind: ExprKind::Print {
+                        expr: Box::new(args[0].clone()),
+                    },
+                },
+                _ => Expr {
+                    kind: ExprKind::Call { name, args },
+                },
+            }
+        }
+        ExprKind::UnOp { kind, expr } => Expr {
+            kind: ExprKind::UnOp {
+                kind,
+                expr: Box::new(transform_expr(*expr)),
+            },
+        },
+        ExprKind::BinOp { kind, left, right } => Expr {
+            kind: ExprKind::BinOp {
+                kind,
+                left: Box::new(transform_expr(*left)),
+                right: Box::new(transform_expr(*right)),
+            },
+        },
+        ExprKind::Lit { .. } | ExprKind::Ident { .. } => expr,
+        ExprKind::If { .. } | ExprKind::Print { .. } => {
+            // panic!("should not exist here")
+            expr
+        }
+    }
+}
+
+fn transform_decls(decls: Vec<Decl>) -> Vec<Decl> {
+    decls
+        .into_iter()
+        .map(|decl| match decl {
+            Decl::Ass { name, expr } => Decl::Ass {
+                name,
+                expr: transform_decls(expr),
+            },
+            Decl::Fun {
+                name,
+                args,
+                ret,
+                body,
+            } => Decl::Fun {
+                name,
+                args,
+                ret,
+                body: transform_decls(body),
+            },
+            Decl::Stm { expr } => Decl::Stm {
+                expr: transform_expr(expr),
+            },
+        })
+        .tuple_merger(|a, b| match (a, b) {
+            (
+                Decl::Stm {
+                    expr:
+                        Expr {
+                            kind:
+                                ExprKind::If {
+                                    cond,
+                                    then,
+                                    else_: None,
+                                },
+                        },
+                },
+                Decl::Stm {
+                    expr:
+                        Expr {
+                            kind:
+                                ExprKind::Call {
+                                    name: name_b,
+                                    args: args_b,
+                                },
+                        },
+                },
+            ) if name_b == "else" && args_b.len() == 1 => Some(Decl::Stm {
+                expr: Expr {
+                    kind: ExprKind::If {
+                        cond: cond.clone(),
+                        then: then.clone(),
+                        else_: Some(Box::new(args_b[0].clone())),
+                    },
+                },
+            }),
+            _ => None,
+        })
+        .collect()
+}
+
+fn parse_inner<T>(
+    input: &str,
+    parser: impl chumsky::Parser<Item, T, Error = Simple<Item>>,
+    transformer: impl Fn(T) -> T,
+) -> std::result::Result<T, Vec<chumsky::error::Simple<Item>>> {
+    parser
+        .then_ignore(end())
+        .parse(indent_stream(input).collect::<String>())
+        .map(transformer)
 }
 
 pub fn parse(input: &str) -> Result<Program> {
-    parser()
-        .parse(indent_stream(input).collect::<String>())
+    parse_inner(input, declaration(), transform_decls)
+        .map(Program::new)
         .map_err(|err| format!("{err:?}"))
 }
 
@@ -336,17 +345,13 @@ mod test {
     use crate::util::macros::*;
 
     fn parse_expr(input: &str) -> std::result::Result<Expr, Vec<chumsky::error::Simple<Item>>> {
-        top_level_expression()
-            .then_ignore(end())
-            .parse(dbg!(indent_stream(input).collect::<String>()))
+        parse_inner(input, top_level_expression(), transform_expr)
     }
 
     fn parse_decl(
         input: &str,
     ) -> std::result::Result<Vec<Decl>, Vec<chumsky::error::Simple<Item>>> {
-        declaration()
-            .then_ignore(end())
-            .parse(dbg!(indent_stream(input).collect::<String>()))
+        parse_inner(input, declaration(), transform_decls)
     }
 
     #[test]
@@ -588,12 +593,12 @@ mod test {
     }
 
     #[test]
-    fn test_transform_smart_ifs() {
-        assert_eq!(transform_smart_ifs(vec![]), vec![]);
-        assert_eq!(transform_smart_ifs(vec![stm!(nil!())]), vec![stm!(nil!())]);
+    fn test_transform_decls() {
+        assert_eq!(transform_decls(vec![]), vec![]);
+        assert_eq!(transform_decls(vec![stm!(nil!())]), vec![stm!(nil!())]);
 
         assert_eq!(
-            transform_smart_ifs(vec![
+            transform_decls(vec![
                 stm!(if_!(bool!(true), num!(1))),
                 stm!(call!(else(num!(2))))
             ]),
@@ -601,7 +606,7 @@ mod test {
         );
 
         assert_eq!(
-            transform_smart_ifs(vec![
+            transform_decls(vec![
                 stm!(if_!(bool!(true), num!(1), num!(2))),
                 stm!(call!(else(num!(2))))
             ]),
