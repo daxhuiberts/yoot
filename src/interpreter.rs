@@ -367,6 +367,8 @@ fn eval_expr(expr: &Expr, vars: &mut HashMap<String, Var>) -> Result<Value> {
             println!("{value:?}");
             Ok(Value::Nil)
         }
+
+        ExprKind::Block { decls } => eval_decls(decls, vars),
     }
 }
 

@@ -35,7 +35,7 @@ pub enum Ty {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypedExpr {
-    pub kind: ExprKind<Self>,
+    pub kind: ExprKind<Self, TypedDecl>,
     pub ty: TySimple,
 }
 

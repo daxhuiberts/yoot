@@ -300,6 +300,18 @@ fn check_expr(expr: &Expr, env: &mut HashMap<String, Ty>) -> Result<TypedExpr> {
             },
             ty: TySimple::Nil,
         }),
+
+        ExprKind::Block { decls } => {
+            let decls = check_decls(decls, env)?;
+            let ty = match decls.last().unwrap().ty() {
+                Ty::Simple(ty) => ty,
+                Ty::Function(_) => TySimple::Nil,
+            };
+            Ok(TypedExpr {
+                kind: ExprKind::Block { decls },
+                ty,
+            })
+        }
     }
 }
 

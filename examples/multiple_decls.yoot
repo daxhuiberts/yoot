@@ -7,4 +7,5 @@ foo x:Num -> Num =
   y + x
 
 foo
+  print 1
   a

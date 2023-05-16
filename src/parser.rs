@@ -145,13 +145,18 @@ fn sub_expression() -> impl chumsky::Parser<Item, Expr, Error = Simple<Item>> + 
     })
 }
 
-fn top_level_expression() -> impl chumsky::Parser<Item, Expr, Error = Simple<Item>> + Clone {
-    recursive(|top_level_expression| {
+fn top_level_expression(
+    decls_parser: impl chumsky::Parser<Item, Vec<Decl>, Error = Simple<Item>> + Clone,
+) -> impl chumsky::Parser<Item, Expr, Error = Simple<Item>> + Clone {
+    {
         let inline_args =
             punct(" ").ignore_then(sub_expression().separated_by(punct(", ")).at_least(1));
 
-        let blocks = top_level_expression
+        let blocks = decls_parser
             .delimited_by(just(OPEN_BLOCK), just(CLOSE_BLOCK))
+            .map(|decls| Expr {
+                kind: ExprKind::Block { decls },
+            })
             .repeated()
             .at_least(1);
 
@@ -169,12 +174,12 @@ fn top_level_expression() -> impl chumsky::Parser<Item, Expr, Error = Simple<Ite
                 kind: ExprKind::Call { name, args },
             })
             .or(sub_expression())
-    })
+    }
 }
 
-fn declaration() -> impl chumsky::Parser<Item, Vec<Decl>, Error = Simple<Item>> {
+fn declaration() -> impl chumsky::Parser<Item, Vec<Decl>, Error = Simple<Item>> + Clone {
     recursive(|declaration| {
-        let expression = top_level_expression();
+        let expression = top_level_expression(declaration.clone());
 
         let definition = declaration
             .delimited_by(just(OPEN_BLOCK), just(CLOSE_BLOCK))
@@ -258,6 +263,11 @@ fn transform_expr(expr: Expr) -> Expr {
             // panic!("should not exist here")
             expr
         }
+        ExprKind::Block { decls } => Expr {
+            kind: ExprKind::Block {
+                decls: transform_decls(decls),
+            },
+        },
     }
 }
 
@@ -345,7 +355,7 @@ mod test {
     use crate::util::macros::*;
 
     fn parse_expr(input: &str) -> std::result::Result<Expr, Vec<chumsky::error::Simple<Item>>> {
-        parse_inner(input, top_level_expression(), transform_expr)
+        parse_inner(input, top_level_expression(declaration()), transform_expr)
     }
 
     fn parse_decl(
@@ -474,23 +484,26 @@ mod test {
         assert_ok!(parse_expr("foo a"), call!(foo(ident!(a))));
         assert_ok!(parse_expr("foo a, b"), call!(foo(ident!(a), ident!(b))));
 
-        assert_ok!(parse_expr("foo\n  bar"), call!(foo(ident!(bar))));
+        assert_ok!(
+            parse_expr("foo\n  bar"),
+            call!(foo(block!(stm!(ident!(bar)))))
+        );
         assert_ok!(
             parse_expr("foo\n  bar\n    baz"),
-            call!(foo(call!(bar(ident!(baz)))))
+            call!(foo(block!(stm!(call!(bar(block!(stm!(ident!(baz)))))))))
         );
 
         assert_ok!(
             parse_expr("foo a\n  bar"),
-            call!(foo(ident!(a), ident!(bar)))
+            call!(foo(ident!(a), block!(stm!(ident!(bar)))))
         );
         assert_ok!(
             parse_expr("foo a,\n  bar"),
-            call!(foo(ident!(a), ident!(bar)))
+            call!(foo(ident!(a), block!(stm!(ident!(bar)))))
         );
         assert_ok!(
             parse_expr("foo a, b\n  bar"),
-            call!(foo(ident!(a), ident!(b), ident!(bar)))
+            call!(foo(ident!(a), ident!(b), block!(stm!(ident!(bar)))))
         );
 
         // // NOT ANYMORE!!!

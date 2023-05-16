@@ -28,7 +28,7 @@ pub enum BinOpKind {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum ExprKind<T> {
+pub enum ExprKind<E, D> {
     Lit {
         lit: LitKind,
     },
@@ -37,30 +37,33 @@ pub enum ExprKind<T> {
     },
     UnOp {
         kind: UnOpKind,
-        expr: Box<T>,
+        expr: Box<E>,
     },
     BinOp {
         kind: BinOpKind,
-        left: Box<T>,
-        right: Box<T>,
+        left: Box<E>,
+        right: Box<E>,
     },
     If {
-        cond: Box<T>,
-        then: Box<T>,
-        else_: Option<Box<T>>,
+        cond: Box<E>,
+        then: Box<E>,
+        else_: Option<Box<E>>,
     },
     Call {
         name: String,
-        args: Vec<T>,
+        args: Vec<E>,
     },
     Print {
-        expr: Box<T>,
+        expr: Box<E>,
+    },
+    Block {
+        decls: Vec<D>,
     },
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Expr {
-    pub kind: ExprKind<Self>,
+    pub kind: ExprKind<Self, Decl>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -221,6 +224,16 @@ pub mod macros {
             Expr {
                 kind: ExprKind::Print {
                     expr: Box::new($expr),
+                }
+            }
+        }
+    }
+
+    pubmacro! { block,
+        ($($expr:expr),+) => {
+            Expr {
+                kind: ExprKind::Block {
+                    decls: vec![$($expr),+]
                 }
             }
         }
