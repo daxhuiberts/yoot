@@ -322,6 +322,25 @@ fn eval_expr(expr: &Expr, vars: &mut HashMap<String, Var>) -> Result<Value> {
             }
         }
 
+        ExprKind::While { cond, do_ } => {
+            let mut result = Value::Nil;
+
+            loop {
+                let cond_val = eval_expr(cond, vars)?;
+                if let Value::Bool(cond_val) = cond_val {
+                    if cond_val {
+                        result = eval_expr(do_, vars)?;
+                    } else {
+                        return Ok(result);
+                    }
+                } else {
+                    return Err(format!(
+                        "expect bool as condition for while statement: {cond_val:?}"
+                    ));
+                }
+            }
+        }
+
         ExprKind::Call { name, args } => {
             // TODO: function vars should have a reference to the function declaration.
             let var = vars.get(name).cloned();
@@ -335,16 +354,24 @@ fn eval_expr(expr: &Expr, vars: &mut HashMap<String, Var>) -> Result<Value> {
                     if arg_names.len() == args.len() {
                         let mut scoped_vars = args
                             .iter()
-                            .zip(arg_names.into_iter())
+                            .zip(arg_names.iter())
                             .map(|(arg, name)| {
                                 Ok((
-                                    name,
+                                    name.clone(),
                                     Var::Val {
                                         value: eval_expr(arg, vars)?,
                                     },
                                 ))
                             })
-                            .collect::<Result<_>>()?;
+                            .collect::<Result<HashMap<_, _>>>()?;
+                        // Add calling function for recursive call support.
+                        scoped_vars.insert(
+                            name.clone(),
+                            Var::Fun {
+                                args: arg_names,
+                                body: body.clone(),
+                            },
+                        );
                         eval_decls(&body, &mut scoped_vars)
                     } else {
                         Err(format!(

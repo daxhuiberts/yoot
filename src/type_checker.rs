@@ -253,6 +253,25 @@ fn check_expr(expr: &Expr, env: &mut HashMap<String, Ty>) -> Result<TypedExpr> {
             }
         }
 
+        ExprKind::While { cond, do_ } => {
+            let cond = check_expr(cond, env)?;
+            let do_ = check_expr(do_, env)?;
+
+            let do_ty = do_.ty.clone();
+
+            if cond.ty != TySimple::Bool {
+                return Err("condition should be bool".to_string());
+            }
+
+            Ok(TypedExpr {
+                kind: ExprKind::While {
+                    cond: Box::new(cond),
+                    do_: Box::new(do_),
+                },
+                ty: do_ty,
+            })
+        }
+
         ExprKind::Call { name, args } => {
             let (function_args_ty, function_ret_ty) = match env.get(name).cloned() {
                 Some(Ty::Function(TyFunction { args, ret })) => Ok((args, ret)),

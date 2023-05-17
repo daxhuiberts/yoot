@@ -49,6 +49,10 @@ pub enum ExprKind<E, D> {
         then: Box<E>,
         else_: Option<Box<E>>,
     },
+    While {
+        cond: Box<E>,
+        do_: Box<E>,
+    },
     Call {
         name: String,
         args: Vec<E>,

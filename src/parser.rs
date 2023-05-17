@@ -240,6 +240,12 @@ fn transform_expr(expr: Expr) -> Expr {
                         expr: Box::new(args[0].clone()),
                     },
                 },
+                "while" if args.len() == 2 => Expr {
+                    kind: ExprKind::While {
+                        cond: Box::new(args[0].clone()),
+                        do_: Box::new(args[1].clone()),
+                    },
+                },
                 _ => Expr {
                     kind: ExprKind::Call { name, args },
                 },
@@ -259,7 +265,7 @@ fn transform_expr(expr: Expr) -> Expr {
             },
         },
         ExprKind::Lit { .. } | ExprKind::Ident { .. } => expr,
-        ExprKind::If { .. } | ExprKind::Print { .. } => {
+        ExprKind::If { .. } | ExprKind::Print { .. } | ExprKind::While { .. } => {
             // panic!("should not exist here")
             expr
         }
