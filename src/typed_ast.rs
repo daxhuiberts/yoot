@@ -1,6 +1,40 @@
 use crate::ast::ExprKind;
 use std::str::FromStr;
 
+// Generic stuff
+
+// pub trait TyInterface {
+//     type Simple;
+//     type Function: Clone + std::fmt::Debug + PartialEq;
+// }
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TyExpr<TS, TF> {
+    pub kind: ExprKind<Self, TyDecl<TS, TF>>,
+    pub ty: TS,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum TyDecl<TS, TF> {
+    Stm {
+        expr: TyExpr<TS, TF>,
+        ty: TS,
+    },
+    Ass {
+        name: String,
+        expr: Vec<Self>,
+        ty: TS,
+    },
+    Fun {
+        name: String,
+        args: Vec<String>,
+        body: Vec<Self>,
+        ty: TF,
+    },
+}
+
+// Type data
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum TySimple {
     Nil,
@@ -27,46 +61,16 @@ pub struct TyFunction {
     pub ret: TySimple,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum Ty {
-    Simple(TySimple),
-    Function(TyFunction),
-}
+// #[derive(Clone, Debug, PartialEq)]
+// pub enum Ty {
+//     Simple(TySimple),
+//     Function(TyFunction),
+// }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct TypedExpr {
-    pub kind: ExprKind<Self, TypedDecl>,
-    pub ty: TySimple,
-}
+// Typed stuff
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum TypedDecl {
-    Stm {
-        expr: TypedExpr,
-        ty: TySimple,
-    },
-    Ass {
-        name: String,
-        expr: Vec<TypedDecl>,
-        ty: TySimple,
-    },
-    Fun {
-        name: String,
-        args: Vec<String>,
-        body: Vec<TypedDecl>,
-        ty: TyFunction,
-    },
-}
-
-impl TypedDecl {
-    pub fn ty(&self) -> Ty {
-        match self {
-            TypedDecl::Stm { ty, .. } => Ty::Simple(ty.clone()),
-            TypedDecl::Ass { ty, .. } => Ty::Simple(ty.clone()),
-            TypedDecl::Fun { ty, .. } => Ty::Function(ty.clone()),
-        }
-    }
-}
+pub type TypedExpr = TyExpr<TySimple, TyFunction>;
+pub type TypedDecl = TyDecl<TySimple, TyFunction>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypedProgram(Vec<TypedDecl>);
@@ -74,6 +78,54 @@ pub struct TypedProgram(Vec<TypedDecl>);
 impl TypedProgram {
     pub fn new(decls: Vec<TypedDecl>) -> Self {
         Self(decls)
+    }
+}
+
+// Maybe type stuff
+
+#[derive(Clone, PartialEq)]
+pub enum MaybeTySimple {
+    Unknown,
+    Expected(TySimple),
+    Possibly(Vec<TySimple>),
+    Inferred(TySimple),
+}
+
+impl std::fmt::Debug for MaybeTySimple {
+    fn fmt(
+        &self,
+        formatter: &mut std::fmt::Formatter<'_>,
+    ) -> std::result::Result<(), std::fmt::Error> {
+        match self {
+            MaybeTySimple::Expected(ty) => ty.fmt(formatter)?,
+            _ => panic!("cant format non expected types"),
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct MaybeTyFunction {
+    pub args: Vec<MaybeTySimple>,
+    pub ret: MaybeTySimple,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum MaybeTy {
+    Simple(MaybeTySimple),
+    Function(MaybeTyFunction),
+}
+
+pub type MaybeTypedExpr = TyExpr<MaybeTySimple, MaybeTyFunction>;
+pub type MaybeTypedDecl = TyDecl<MaybeTySimple, MaybeTyFunction>;
+
+impl MaybeTypedDecl {
+    pub fn ty(&self) -> MaybeTy {
+        match self {
+            MaybeTypedDecl::Stm { ty, .. } => MaybeTy::Simple(ty.clone()),
+            MaybeTypedDecl::Ass { ty, .. } => MaybeTy::Simple(ty.clone()),
+            MaybeTypedDecl::Fun { ty, .. } => MaybeTy::Function(ty.clone()),
+        }
     }
 }
 
