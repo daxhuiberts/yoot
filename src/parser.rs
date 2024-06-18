@@ -32,6 +32,14 @@ fn literal() -> impl chumsky::Parser<Item, LitKind, Error = Simple<Item>> + Clon
 }
 
 fn sub_expression() -> impl chumsky::Parser<Item, Expr, Error = Simple<Item>> + Clone {
+    let binop_mapper = |left, (kind, right): (_, _)| Expr {
+        kind: ExprKind::BinOp {
+            kind,
+            left: Box::new(left),
+            right: Box::new(right),
+        },
+    };
+
     recursive(|expr| {
         let literal = literal().map(|lit| Expr {
             kind: ExprKind::Lit { lit },
@@ -76,13 +84,7 @@ fn sub_expression() -> impl chumsky::Parser<Item, Expr, Error = Simple<Item>> + 
                     .then(unary)
                     .repeated(),
             )
-            .foldl(|left, (kind, right)| Expr {
-                kind: ExprKind::BinOp {
-                    kind,
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-            });
+            .foldl(binop_mapper);
 
         let term = factor
             .clone()
@@ -93,13 +95,7 @@ fn sub_expression() -> impl chumsky::Parser<Item, Expr, Error = Simple<Item>> + 
                     .then(factor)
                     .repeated(),
             )
-            .foldl(|left, (kind, right)| Expr {
-                kind: ExprKind::BinOp {
-                    kind,
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-            });
+            .foldl(binop_mapper);
 
         let comp = term
             .clone()
@@ -114,34 +110,16 @@ fn sub_expression() -> impl chumsky::Parser<Item, Expr, Error = Simple<Item>> + 
                     .then(term)
                     .repeated(),
             )
-            .foldl(|left, (kind, right)| Expr {
-                kind: ExprKind::BinOp {
-                    kind,
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-            });
+            .foldl(binop_mapper);
 
         let and = comp
             .clone()
             .then(punct(" && ").to(BinOpKind::And).then(comp).repeated())
-            .foldl(|left, (kind, right)| Expr {
-                kind: ExprKind::BinOp {
-                    kind,
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-            });
+            .foldl(binop_mapper);
 
         and.clone()
             .then(punct(" || ").to(BinOpKind::Or).then(and).repeated())
-            .foldl(|left, (kind, right)| Expr {
-                kind: ExprKind::BinOp {
-                    kind,
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-            })
+            .foldl(binop_mapper)
     })
 }
 
