@@ -1,2 +1,1 @@
 INTERPRETER RESULT: Ok(Bool(true))
-TYPED_PROGRAM ERROR: missing type

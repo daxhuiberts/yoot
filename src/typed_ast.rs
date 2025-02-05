@@ -1,5 +1,7 @@
+use super::util::*;
 use crate::ast::ExprKind;
 use std::str::FromStr;
+use std::{cell::RefCell, rc::Rc};
 
 // Generic stuff
 
@@ -85,10 +87,104 @@ impl TypedProgram {
 
 #[derive(Clone, PartialEq)]
 pub enum MaybeTySimple {
-    Unknown,
+    Unknown {
+        variable_name: String,
+        target: Rc<RefCell<Option<Self>>>,
+    },
     Expected(TySimple),
     Possibly(Vec<TySimple>),
     Inferred(TySimple),
+}
+
+impl MaybeTySimple {
+    pub fn parse(var: &String, ty: &Option<String>) -> Result<Self> {
+        if let Some(ty) = ty {
+            Ok(MaybeTySimple::Expected(TySimple::from_str(&ty)?))
+        } else {
+            Ok(MaybeTySimple::Unknown {
+                variable_name: var.clone(),
+                target: Rc::new(RefCell::new(None)),
+            })
+        }
+    }
+
+    pub fn get_type(&self) -> Result<TySimple> {
+        match self {
+            MaybeTySimple::Unknown {
+                target,
+                variable_name: var,
+            } => {
+                if let Some(sub) = &*target.borrow() {
+                    sub.get_type()
+                } else {
+                    Err(format!("var {var} not resolved"))
+                }
+            }
+            MaybeTySimple::Expected(ty) => Ok(ty.clone()),
+            _ => Err(format!("unepexted type {self:?}")),
+        }
+    }
+}
+
+pub fn match_type(left: &MaybeTySimple, right: &MaybeTySimple) -> Result<()> {
+    fn occurs_in(var: &MaybeTySimple, var2: &String, other: &MaybeTySimple) -> bool {
+        match other {
+            MaybeTySimple::Expected(_) => false,
+            MaybeTySimple::Unknown {
+                target,
+                variable_name: other_var,
+            } => {
+                if let Some(sub) = &*target.borrow() {
+                    occurs_in(var, var2, sub)
+                } else {
+                    var2 == other_var
+                }
+            }
+            _ => panic!("SHOULD NOT HAPPEN"),
+        }
+    }
+
+    fn handle_var(
+        var: &MaybeTySimple,
+        var2: &String,
+        sub: &RefCell<Option<MaybeTySimple>>,
+        other: &MaybeTySimple,
+    ) -> Result<()> {
+        if let Some(sub) = &*sub.borrow() {
+            return match_type(&sub, other);
+        }
+
+        if occurs_in(var, var2, other) {
+            Err(format!("infinite type: {var:?} = {other:?}"))
+        } else {
+            *sub.borrow_mut() = Some(other.clone());
+            Ok(())
+        }
+    }
+
+    match (left, right) {
+        (
+            MaybeTySimple::Unknown {
+                target,
+                variable_name: var,
+            },
+            _,
+        ) => handle_var(left, var, target, right),
+        (
+            _,
+            MaybeTySimple::Unknown {
+                target,
+                variable_name: var,
+            },
+        ) => handle_var(right, var, target, left),
+        (MaybeTySimple::Expected(left), MaybeTySimple::Expected(right)) if left == right => Ok(()),
+        (MaybeTySimple::Expected(left), MaybeTySimple::Expected(right)) => Err(format!(
+            "expected same type on both sides: left: {left:?}; right: {right:?}"
+        )),
+        (_, _) => Err(format!(
+            "unexpected types: left: {left:?}; right: {right:?}"
+        )),
+    }
 }
 
 impl std::fmt::Debug for MaybeTySimple {
@@ -98,6 +194,7 @@ impl std::fmt::Debug for MaybeTySimple {
     ) -> std::result::Result<(), std::fmt::Error> {
         match self {
             MaybeTySimple::Expected(ty) => ty.fmt(formatter)?,
+            MaybeTySimple::Unknown { variable_name, .. } => formatter.write_str(&variable_name)?,
             _ => panic!("cant format non expected types"),
         }
         Ok(())

@@ -61,7 +61,9 @@ impl<I: Iterator<Item = T>, T, F: Fn(&T, &T) -> Option<T>> Iterator for TupleMer
 
     fn next(&mut self) -> Option<T> {
         let prev = self.prev.take().or_else(|| self.iterator.next())?;
-        let Some(next) = self.iterator.next() else { return Some(prev) };
+        let Some(next) = self.iterator.next() else {
+            return Some(prev);
+        };
 
         if let Some(merged) = (self.f)(&prev, &next) {
             Some(merged)

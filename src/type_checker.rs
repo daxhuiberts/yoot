@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::str::FromStr;
 
 use super::ast::*;
 use super::typed_ast::*;
@@ -34,19 +33,15 @@ pub fn check_decls(
                 name: (name, expected_type),
                 expr,
             } => {
-                let expected_type = expected_type
-                    .clone()
-                    .map(|exp_ty| TySimple::from_str(&exp_ty))
-                    .transpose()?
-                    .map(MaybeTySimple::Expected);
+                let expected_type = MaybeTySimple::parse(&name, &expected_type)?;
                 let decls = check_decls(expr, &mut env.clone())?;
                 let ty = match decls.last().unwrap().ty() {
                     MaybeTy::Simple(ty) => ty,
                     MaybeTy::Function(_) => MaybeTySimple::Expected(TySimple::Nil),
                 };
-                if expected_type.clone().map_or(false, |ex| ex != ty) {
-                    return Err(format!("expected {expected_type:?}, got {ty:?}"));
-                }
+
+                match_type(&ty, &expected_type)
+                    .map_err(|_| format!("expected {expected_type:?}, got {ty:?}"))?;
 
                 env.insert(name.clone(), MaybeTy::Simple(ty.clone()));
 
@@ -67,15 +62,13 @@ pub fn check_decls(
                     .iter()
                     .cloned()
                     .map(|(arg, ty)| {
-                        let ty = ty.ok_or(String::from("missing type"))?;
-                        let ty = TySimple::from_str(&ty).map(MaybeTySimple::Expected)?;
+                        let ty = MaybeTySimple::parse(&arg, &ty)?;
                         Ok((arg, ty))
                     })
                     .collect::<Result<Vec<_>>>()?;
                 let (args, types): (Vec<_>, Vec<_>) = args.into_iter().unzip();
 
-                let ty_ret = ret.as_ref().ok_or(String::from("missing type"))?;
-                let ty_ret = TySimple::from_str(ty_ret).map(MaybeTySimple::Expected)?;
+                let ty_ret = MaybeTySimple::parse(&name, &ret)?;
                 let ty_function = MaybeTyFunction {
                     args: types.clone(),
                     ret: ty_ret.clone(),
@@ -95,11 +88,10 @@ pub fn check_decls(
                     MaybeTy::Simple(ty) => ty,
                     MaybeTy::Function(_) => MaybeTySimple::Expected(TySimple::Nil),
                 };
-                if provided_ty_ret != ty_ret {
-                    return Err(format!(
-                        "Expected {ty_ret:?} return value, got {provided_ty_ret:?}"
-                    ));
-                }
+
+                match_type(&provided_ty_ret, &ty_ret).map_err(|_| {
+                    format!("Expected {ty_ret:?} return value, got {provided_ty_ret:?}")
+                })?;
 
                 env.insert(name.clone(), MaybeTy::Function(ty_function.clone()));
 
@@ -152,26 +144,28 @@ fn check_expr(expr: &Expr, env: &mut HashMap<String, MaybeTy>) -> Result<MaybeTy
             let expr = check_expr(expr, env)?;
             let ty = expr.ty.clone();
             match kind {
-                UnOpKind::Not => match ty {
-                    MaybeTySimple::Expected(TySimple::Bool) => Ok(MaybeTypedExpr {
+                UnOpKind::Not => {
+                    match_type(&ty, &MaybeTySimple::Expected(TySimple::Bool))
+                        .map_err(|_| format!("can't not {ty:?}"))?;
+                    Ok(MaybeTypedExpr {
                         kind: ExprKind::UnOp {
                             kind: kind.clone(),
                             expr: Box::new(expr),
                         },
                         ty: MaybeTySimple::Expected(TySimple::Bool),
-                    }),
-                    _ => Err(format!("can't not {ty:?}")),
-                },
-                UnOpKind::Neg => match ty {
-                    MaybeTySimple::Expected(TySimple::Num) => Ok(MaybeTypedExpr {
+                    })
+                }
+                UnOpKind::Neg => {
+                    match_type(&ty, &MaybeTySimple::Expected(TySimple::Num))
+                        .map_err(|_| format!("can't neg {ty:?}"))?;
+                    Ok(MaybeTypedExpr {
                         kind: ExprKind::UnOp {
                             kind: kind.clone(),
                             expr: Box::new(expr),
                         },
                         ty: MaybeTySimple::Expected(TySimple::Num),
-                    }),
-                    _ => Err(format!("can't neg {ty:?}")),
-                },
+                    })
+                }
             }
         }
 
@@ -180,34 +174,26 @@ fn check_expr(expr: &Expr, env: &mut HashMap<String, MaybeTy>) -> Result<MaybeTy
             let right = check_expr(right, env)?;
 
             let (left_ty, right_ty) = (left.ty.clone(), right.ty.clone());
-            if left_ty != right_ty {
-                return Err(format!(
-                    "expected same type on both sides: left: {left_ty:?}; right: {right_ty:?}"
-                ));
-            }
+            match_type(&left_ty, &right_ty).map_err(|_| {
+                format!("expected same type on both sides: left: {left_ty:?}; right: {right_ty:?}")
+            })?;
 
             let ty = match kind {
                 BinOpKind::Eq | BinOpKind::Neq => left_ty,
                 BinOpKind::Add | BinOpKind::Sub | BinOpKind::Mul | BinOpKind::Div => {
-                    if left_ty != MaybeTySimple::Expected(TySimple::Num) {
-                        return Err(format!("expected type to be Num: got {left_ty:?}"));
-                    } else {
-                        MaybeTySimple::Expected(TySimple::Num)
-                    }
+                    match_type(&left_ty, &MaybeTySimple::Expected(TySimple::Num))
+                        .map_err(|_| format!("expected type to be Num: got {left_ty:?}"))?;
+                    MaybeTySimple::Expected(TySimple::Num)
                 }
                 BinOpKind::Gt | BinOpKind::Gte | BinOpKind::Lt | BinOpKind::Lte => {
-                    if left_ty != MaybeTySimple::Expected(TySimple::Num) {
-                        return Err(format!("expected type to be Num: got {left_ty:?}"));
-                    } else {
-                        MaybeTySimple::Expected(TySimple::Bool)
-                    }
+                    match_type(&left_ty, &MaybeTySimple::Expected(TySimple::Num))
+                        .map_err(|_| format!("expected type to be Num: got {left_ty:?}"))?;
+                    MaybeTySimple::Expected(TySimple::Bool)
                 }
                 BinOpKind::And | BinOpKind::Or => {
-                    if left_ty != MaybeTySimple::Expected(TySimple::Bool) {
-                        return Err(format!("expected type to be Bool: got {left_ty:?}"));
-                    } else {
-                        MaybeTySimple::Expected(TySimple::Bool)
-                    }
+                    match_type(&left_ty, &MaybeTySimple::Expected(TySimple::Bool))
+                        .map_err(|_| format!("expected type to be Bool: got {left_ty:?}"))?;
+                    MaybeTySimple::Expected(TySimple::Bool)
                 }
             };
 
@@ -230,34 +216,33 @@ fn check_expr(expr: &Expr, env: &mut HashMap<String, MaybeTy>) -> Result<MaybeTy
                 .map(|else_| check_expr(else_, env))
                 .transpose()?;
 
-            if cond_ty != MaybeTySimple::Expected(TySimple::Bool) {
-                return Err("condition should be bool".to_string());
-            }
+            match_type(&cond_ty, &MaybeTySimple::Expected(TySimple::Bool))
+                .map_err(|_| "condition should be bool".to_string())?;
 
-            let else_ty = else_.as_ref().map(|e| e.ty.clone());
-            match (then_ty, else_ty, else_) {
-                (MaybeTySimple::Expected(TySimple::Nil), None, _) => Ok(MaybeTypedExpr {
-                    kind: ExprKind::If {
-                        cond: Box::new(cond),
-                        then: Box::new(then),
-                        else_: None,
-                    },
-                    ty: MaybeTySimple::Expected(TySimple::Nil),
-                }),
-                (then_ty, None, _) => Err(format!(
-                    "expect then branch to be of type nil: got {then_ty:?}"
-                )),
-                (then_ty, Some(else_ty), Some(else_)) if then_ty == else_ty => Ok(MaybeTypedExpr {
+            if let Some(else_) = else_ {
+                match_type(&then_ty, &else_.ty).map_err(|_| {
+                    format!("expect then and else branch to be of same type: {then_ty:?} and {else_ty:?}", else_ty=else_.ty)
+                })?;
+                Ok(MaybeTypedExpr {
                     kind: ExprKind::If {
                         cond: Box::new(cond),
                         then: Box::new(then),
                         else_: Some(Box::new(else_)),
                     },
                     ty: then_ty,
-                }),
-                (then_ty, Some(else_ty), _) => Err(format!(
-                    "expect then and else branch to be of same type: {then_ty:?} and {else_ty:?}"
-                )),
+                })
+            } else {
+                match_type(&then_ty, &MaybeTySimple::Expected(TySimple::Nil)).map_err(|_| {
+                    format!("expect then branch to be of type nil: got {then_ty:?}")
+                })?;
+                Ok(MaybeTypedExpr {
+                    kind: ExprKind::If {
+                        cond: Box::new(cond),
+                        then: Box::new(then),
+                        else_: None,
+                    },
+                    ty: MaybeTySimple::Expected(TySimple::Nil),
+                })
             }
         }
 
@@ -267,9 +252,8 @@ fn check_expr(expr: &Expr, env: &mut HashMap<String, MaybeTy>) -> Result<MaybeTy
 
             let do_ty = do_.ty.clone();
 
-            if cond.ty != MaybeTySimple::Expected(TySimple::Bool) {
-                return Err("condition should be bool".to_string());
-            }
+            match_type(&cond.ty, &MaybeTySimple::Expected(TySimple::Bool))
+                .map_err(|_| "condition should be bool".to_string())?;
 
             Ok(MaybeTypedExpr {
                 kind: ExprKind::While {
@@ -302,13 +286,12 @@ fn check_expr(expr: &Expr, env: &mut HashMap<String, MaybeTy>) -> Result<MaybeTy
                 .map(|(index, (arg, expected_ty))| {
                     let expr = check_expr(arg, env)?;
                     let provided_ty = expr.ty.clone();
-                    if provided_ty != expected_ty {
-                        Err(format!(
+                    match_type(&provided_ty, &expected_ty).map_err(|_| {
+                        format!(
                             "Expected {expected_ty:?} for argument {index}, got {provided_ty:?}"
-                        ))
-                    } else {
-                        Ok(expr)
-                    }
+                        )
+                    })?;
+                    Ok(expr)
                 })
                 .collect::<Result<Vec<_>>>()?;
 
@@ -343,7 +326,8 @@ fn check_expr(expr: &Expr, env: &mut HashMap<String, MaybeTy>) -> Result<MaybeTy
 }
 
 fn maybe_typed_expr_to_typed_expr(maybe: MaybeTypedExpr) -> Result<TypedExpr> {
-    let MaybeTySimple::Expected(ty) = maybe.ty else { return Err("missing expected type".to_string()) };
+    let ty = maybe.ty.get_type()?;
+
     match maybe.kind {
         ExprKind::Lit { lit } => Ok(TypedExpr {
             kind: ExprKind::Lit { lit },
@@ -419,7 +403,7 @@ fn maybe_typed_expr_to_typed_expr(maybe: MaybeTypedExpr) -> Result<TypedExpr> {
 fn maybe_typed_decl_to_typed_decl(maybe: MaybeTypedDecl) -> Result<TypedDecl> {
     match maybe {
         MaybeTypedDecl::Stm { expr, ty } => {
-            let MaybeTySimple::Expected(ty) = ty else { return Err("missing expected type".to_string()) };
+            let ty = ty.get_type()?;
 
             Ok(TypedDecl::Stm {
                 expr: maybe_typed_expr_to_typed_expr(expr)?,
@@ -427,7 +411,7 @@ fn maybe_typed_decl_to_typed_decl(maybe: MaybeTypedDecl) -> Result<TypedDecl> {
             })
         }
         MaybeTypedDecl::Ass { name, expr, ty } => {
-            let MaybeTySimple::Expected(ty) = ty else { return Err("missing expected type".to_string()) };
+            let ty = ty.get_type()?;
 
             Ok(TypedDecl::Ass {
                 name,
@@ -445,10 +429,12 @@ fn maybe_typed_decl_to_typed_decl(maybe: MaybeTypedDecl) -> Result<TypedDecl> {
             ty,
         } => {
             let ty = TyFunction {
-                args: ty.args.into_iter().map(|ty| {
-                    let MaybeTySimple::Expected(ty) = ty else { return Err("missing expected type".to_string()) }; Ok(ty)
-                }).collect::<Result<Vec<_>>>()?,
-                ret: { let MaybeTySimple::Expected(ty) = ty.ret else { return Err("missing expected type".to_string()) }; ty },
+                args: ty
+                    .args
+                    .into_iter()
+                    .map(|ty| ty.get_type())
+                    .collect::<Result<Vec<_>>>()?,
+                ret: ty.ret.get_type()?,
             };
 
             Ok(TypedDecl::Fun {
@@ -566,7 +552,7 @@ mod test {
 
         assert_eq!(
             check_decls(&vec![ass!(foo: Nil = num!(1))], &mut eenv!()),
-            Err("expected Some(Nil), got Num".into())
+            Err("expected Nil, got Num".into())
         );
     }
 
@@ -596,6 +582,19 @@ mod test {
                 &mut eenv!()
             ),
             Err("Expected Bool return value, got Num".into())
+        );
+    }
+
+    #[test]
+    fn test_check_decls_fun_call() {
+        assert_eq!(
+            check_decls(
+                &vec![fun!(inc(val) => add!(ident!(val), num!(1)))],
+                &mut eenv!()
+            ),
+            Ok(vec![tfun!(
+                inc(val:Num):Num => tadd!(tident!(val, Num), tnum!(1), Num)
+            )])
         );
     }
 }
