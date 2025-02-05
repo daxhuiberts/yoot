@@ -1,0 +1,2 @@
+Num(1)
+INTERPRETER RESULT: Ok(Num(6))

@@ -45,7 +45,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("INTERPRETER RESULT: {result:?}");
     }
 
-    typed_program?;
+    if let Err(error) = typed_program {
+        println!("TYPED_PROGRAM ERROR: {error}")
+    }
 
     // Only prints 'hello world' wasm program, not the provided program.
     // let result = yoot::compile_to_wasm(&typed_program);

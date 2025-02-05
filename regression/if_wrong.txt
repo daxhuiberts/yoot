@@ -1,0 +1,2 @@
+INTERPRETER RESULT: Ok(Num(10))
+TYPED_PROGRAM ERROR: expect then and else branch to be of same type: Num and Nil
