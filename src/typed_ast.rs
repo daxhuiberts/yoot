@@ -127,7 +127,11 @@ impl MaybeTySimple {
 }
 
 pub fn match_type(left: &MaybeTySimple, right: &MaybeTySimple) -> Result<()> {
+    // println!("MATCH: {left:?} <-> {right:?}");
+
     fn occurs_in(var: &MaybeTySimple, var2: &String, other: &MaybeTySimple) -> bool {
+        // println!("occurs_in({var:?}, {var2:?}, {other:?})");
+
         match other {
             MaybeTySimple::Expected(_) => false,
             MaybeTySimple::Unknown {
@@ -150,12 +154,16 @@ pub fn match_type(left: &MaybeTySimple, right: &MaybeTySimple) -> Result<()> {
         sub: &RefCell<Option<MaybeTySimple>>,
         other: &MaybeTySimple,
     ) -> Result<()> {
+        // println!("handle_var({var:?}, {var2:?}, {sub:?}, {other:?})");
+
         if let Some(sub) = &*sub.borrow() {
             return match_type(&sub, other);
         }
 
         if occurs_in(var, var2, other) {
-            Err(format!("infinite type: {var:?} = {other:?}"))
+            // Err(format!("infinite type: {var:?} = {other:?}"))
+            // not occurs_in, but var points to itself, which is equal
+            Ok(())
         } else {
             *sub.borrow_mut() = Some(other.clone());
             Ok(())
@@ -194,7 +202,17 @@ impl std::fmt::Debug for MaybeTySimple {
     ) -> std::result::Result<(), std::fmt::Error> {
         match self {
             MaybeTySimple::Expected(ty) => ty.fmt(formatter)?,
-            MaybeTySimple::Unknown { variable_name, .. } => formatter.write_str(&variable_name)?,
+            MaybeTySimple::Unknown {
+                variable_name,
+                target,
+            } => {
+                formatter.write_str("$")?;
+                formatter.write_str(&variable_name)?;
+                if let Some(target) = &*target.borrow() {
+                    formatter.write_str("->")?;
+                    target.fmt(formatter)?;
+                }
+            }
             _ => panic!("cant format non expected types"),
         }
         Ok(())

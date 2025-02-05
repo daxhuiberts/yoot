@@ -2,7 +2,7 @@ a =
   b = 2
   b + 1
 
-foo x:Num -> Num =
+foo x =
   y = x
   y + x
 

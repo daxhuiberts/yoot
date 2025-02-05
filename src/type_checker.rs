@@ -4,8 +4,12 @@ use super::ast::*;
 use super::typed_ast::*;
 use super::util::*;
 
-pub fn check(program: &Program) -> Result<TypedProgram> {
+pub fn check(program: &Program, print_maybe: bool) -> Result<TypedProgram> {
     let maybe_decls = check_decls(program.decls(), &mut HashMap::new())?;
+
+    if print_maybe {
+        println!("MAYBE TYPED: {maybe_decls:#?}");
+    }
 
     let decls = maybe_decls
         .into_iter()

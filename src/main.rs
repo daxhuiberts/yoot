@@ -33,8 +33,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("PARSED PROGRAM: {program:#?}");
     }
 
-    let typed_program = yoot::type_check(&program);
-    if args.print_all || args.print_typed_ast {
+    let print_typed = args.print_all || args.print_typed_ast;
+
+    let typed_program = yoot::type_check(&program, print_typed);
+    if print_typed {
         if let Ok(typed_program) = &typed_program {
             println!("TYPED PROGRAM: {typed_program:#?}");
         }
