@@ -4,11 +4,11 @@ Yoot is an experiment in programming language design and development as a result
 
 ### Todo
 
-- [ ] Add support for comments
-- [ ] Add support for updating variables
-- [ ] Add support for multi line functions
-- [ ] Add support for while statements
-- [ ] Implement type inference
+- [x] Add support for comments
+- [x] Add support for updating variables
+- [x] Add support for multi line functions
+- [x] Add support for while statements
+- [x] Implement type inference
 - [ ] Compile to Binaryen
 - [ ] Add testing framework to check examples against expected (debug) outputs
 - [ ] Add parsing error supports

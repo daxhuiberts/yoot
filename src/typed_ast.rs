@@ -74,12 +74,26 @@ pub struct TyFunction {
 pub type TypedExpr = TyExpr<TySimple, TyFunction>;
 pub type TypedDecl = TyDecl<TySimple, TyFunction>;
 
+impl TypedDecl {
+    pub fn ty(&self) -> TySimple {
+        match self {
+            TypedDecl::Stm { ty, .. } => ty.clone(),
+            TypedDecl::Ass { ty, .. } => ty.clone(),
+            TypedDecl::Fun { .. } => TySimple::Nil,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypedProgram(Vec<TypedDecl>);
 
 impl TypedProgram {
     pub fn new(decls: Vec<TypedDecl>) -> Self {
         Self(decls)
+    }
+
+    pub fn decls(&self) -> &[TypedDecl] {
+        &self.0
     }
 }
 

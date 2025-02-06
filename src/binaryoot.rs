@@ -20,6 +20,35 @@ impl Module {
         }
     }
 
+    pub fn drop_(&self, expression: Expression) -> Expression {
+        Expression {
+            inner: unsafe { BinaryenDrop(self.inner, expression.inner) },
+        }
+    }
+
+    pub fn const_(&self, literal: Literal) -> Expression {
+        Expression {
+            inner: unsafe { BinaryenConst(self.inner, literal.to_binaryen()) },
+        }
+    }
+
+    pub fn block(&self, expressions: Vec<Expression>) -> Expression {
+        let expressions = expressions.into_iter().map(|e| e.inner).collect::<Vec<_>>();
+        let (ptr, len) = to_raw_parts(expressions);
+
+        Expression {
+            inner: unsafe {
+                BinaryenBlock(
+                    self.inner,
+                    std::ptr::null(),
+                    ptr,
+                    len as u32,
+                    BinaryenTypeAuto(),
+                )
+            },
+        }
+    }
+
     pub fn binary(&self, op: Op, left: Expression, right: Expression) -> Expression {
         Expression {
             inner: unsafe { BinaryenBinary(self.inner, op.to_binaryen(), left.inner, right.inner) },
@@ -43,9 +72,28 @@ impl Module {
         }
     }
 
+    pub fn add_function_export(&self, function: &Function, extern_name: &str) {
+        unsafe {
+            let intern_name = BinaryenFunctionGetName(function.inner);
+            let extern_name = std::ffi::CString::new(extern_name).unwrap();
+            BinaryenAddFunctionExport(self.inner, intern_name, extern_name.as_ptr() as *const i8);
+        }
+    }
+
     pub fn print(&self) {
         unsafe {
             BinaryenModulePrint(self.inner);
+        }
+    }
+
+    pub fn compile(&self) -> Vec<u8> {
+        unsafe {
+            let result = BinaryenModuleAllocateAndWrite(self.inner, std::ptr::null());
+            Vec::from_raw_parts(
+                result.binary as *mut u8,
+                result.binaryBytes,
+                result.binaryBytes,
+            )
         }
     }
 }
@@ -97,13 +145,17 @@ impl FnType {
 
 #[derive(Debug)]
 pub enum Type {
+    None,
     Int32,
+    Int64,
 }
 
 impl Type {
     fn to_binaryen(&self) -> BinaryenType {
         match self {
+            Self::None => unsafe { BinaryenTypeNone() },
             Self::Int32 => unsafe { BinaryenTypeInt32() },
+            Self::Int64 => unsafe { BinaryenTypeInt64() },
         }
     }
 }
@@ -111,12 +163,42 @@ impl Type {
 #[derive(Debug)]
 pub enum Op {
     AddInt32,
+    AddInt64,
 }
 
 impl Op {
     fn to_binaryen(&self) -> BinaryenOp {
         match self {
             Self::AddInt32 => unsafe { BinaryenAddInt32() },
+            Self::AddInt64 => unsafe { BinaryenAddInt64() },
         }
     }
+}
+
+pub enum Literal {
+    Nil,
+    Bool(bool),
+    Num(i64),
+}
+
+impl Literal {
+    fn to_binaryen(&self) -> BinaryenLiteral {
+        match self {
+            Literal::Nil => todo!(),
+            Literal::Bool(_) => todo!(),
+            Literal::Num(num) => unsafe { BinaryenLiteralInt64(*num) },
+        }
+    }
+}
+
+fn to_raw_parts<T>(mut vec: Vec<T>) -> (*mut T, usize) {
+    vec.shrink_to_fit();
+    assert!(vec.len() == vec.capacity());
+    let ptr = vec.as_mut_ptr();
+    let len = vec.len();
+    std::mem::forget(vec); // prevent deallocation in Rust
+                           // The array is still there but no Rust object
+                           // feels responsible. We only have ptr/len now
+                           // to reach it.
+    (ptr, len)
 }

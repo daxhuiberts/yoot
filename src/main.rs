@@ -1,3 +1,6 @@
+use std::io::Write;
+use std::path::Path;
+
 use clap::Parser;
 
 #[derive(Parser, Debug)]
@@ -23,7 +26,9 @@ struct Args {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
-    let source: String = std::fs::read_to_string(args.filename).unwrap();
+    let path = Path::new(&args.filename);
+
+    let source: String = std::fs::read_to_string(path).unwrap();
     if args.print_all {
         println!("SOURCE:\n{source}");
     }
@@ -47,13 +52,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("INTERPRETER RESULT: {result:?}");
     }
 
-    if let Err(error) = typed_program {
-        println!("TYPED_PROGRAM ERROR: {error}")
-    }
+    let typed_program = typed_program?;
 
-    // Only prints 'hello world' wasm program, not the provided program.
-    // let result = yoot::compile_to_wasm(&typed_program);
-    // println!("COMPILE RESULT: {result:#?}");
+    let module = yoot::to_wasm_module(&typed_program)?;
+
+    println!("WASM MODULE:");
+    yoot::print_module(&module);
+
+    let result = yoot::compile_to_wasm(&module)?;
+
+    let mut output_path: std::ffi::OsString = path.file_stem().unwrap().into();
+    output_path.push(".wasm");
+
+    println!("OUTPUT TO: {output_path:?}",);
+
+    std::fs::File::create(&output_path)?.write_all(&result)?;
 
     Ok(())
 }
