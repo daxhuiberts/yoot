@@ -14,9 +14,15 @@ impl Module {
         }
     }
 
-    pub fn local_get(&self, i: u32, ty: Type) -> Expression {
+    pub fn local_get(&self, i: usize, ty: Type) -> Expression {
         Expression {
-            inner: unsafe { BinaryenLocalGet(self.inner, i, ty.to_binaryen()) },
+            inner: unsafe { BinaryenLocalGet(self.inner, i as u32, ty.to_binaryen()) },
+        }
+    }
+
+    pub fn local_set(&self, i: usize, expression: Expression) -> Expression {
+        Expression {
+            inner: unsafe { BinaryenLocalSet(self.inner, i as u32, expression.inner) },
         }
     }
 
@@ -29,6 +35,22 @@ impl Module {
     pub fn const_(&self, literal: Literal) -> Expression {
         Expression {
             inner: unsafe { BinaryenConst(self.inner, literal.to_binaryen()) },
+        }
+    }
+
+    pub fn call(&self, name: &str, args: Vec<Expression>, ret_ty: Type) -> Expression {
+        let name = std::ffi::CString::new(name).unwrap();
+        let (args_ptr, args_len) = to_raw_parts(args.into_iter().map(|arg| arg.inner).collect());
+        Expression {
+            inner: unsafe {
+                BinaryenCall(
+                    self.inner,
+                    name.as_ptr() as *const i8,
+                    args_ptr,
+                    args_len as u32,
+                    ret_ty.to_binaryen(),
+                )
+            },
         }
     }
 
@@ -49,14 +71,52 @@ impl Module {
         }
     }
 
+    pub fn break_(&self, name: &str, condition: Expression, do_: Expression) -> Expression {
+        let name = std::ffi::CString::new(name).unwrap();
+
+        Expression {
+            inner: unsafe {
+                BinaryenBreak(
+                    self.inner,
+                    name.as_ptr() as *const i8,
+                    condition.inner,
+                    do_.inner,
+                )
+            },
+        }
+    }
+
+    pub fn loop_(&self, in_: &str, body: Expression) -> Expression {
+        let in_ = std::ffi::CString::new(in_).unwrap();
+
+        Expression {
+            inner: unsafe { BinaryenLoop(self.inner, in_.as_ptr() as *const i8, body.inner) },
+        }
+    }
+
     pub fn binary(&self, op: Op, left: Expression, right: Expression) -> Expression {
         Expression {
             inner: unsafe { BinaryenBinary(self.inner, op.to_binaryen(), left.inner, right.inner) },
         }
     }
 
-    pub fn add_function(&self, name: &str, ty: &FnType, expr: Expression) -> Function {
+    pub fn nop(&self) -> Expression {
+        Expression {
+            inner: unsafe { BinaryenNop(self.inner) },
+        }
+    }
+
+    pub fn add_function(
+        &self,
+        name: &str,
+        ty: &FnType,
+        vars: Vec<Type>,
+        expr: Expression,
+    ) -> Function {
         let name = std::ffi::CString::new(name).unwrap();
+        let (vars_ptr, vars_len) =
+            to_raw_parts(vars.into_iter().map(|ty| ty.to_binaryen()).collect());
+
         Function {
             inner: unsafe {
                 BinaryenAddFunction(
@@ -64,8 +124,8 @@ impl Module {
                     name.as_ptr(),
                     ty.binaryen_params,
                     ty.binaryen_results,
-                    std::ptr::null() as *const usize as *mut usize,
-                    0,
+                    vars_ptr as *mut usize,
+                    vars_len as u32,
                     expr.inner,
                 )
             },
@@ -164,6 +224,11 @@ impl Type {
 pub enum Op {
     AddInt32,
     AddInt64,
+    EqInt32,
+    EqInt64,
+    GtSInt64,
+    LeSInt64,
+    SubInt64,
 }
 
 impl Op {
@@ -171,22 +236,25 @@ impl Op {
         match self {
             Self::AddInt32 => unsafe { BinaryenAddInt32() },
             Self::AddInt64 => unsafe { BinaryenAddInt64() },
+            Self::EqInt32 => unsafe { BinaryenEqInt32() },
+            Self::EqInt64 => unsafe { BinaryenEqInt64() },
+            Self::GtSInt64 => unsafe { BinaryenGtSInt64() },
+            Self::LeSInt64 => unsafe { BinaryenLeSInt64() },
+            Self::SubInt64 => unsafe { BinaryenSubInt64() },
         }
     }
 }
 
 pub enum Literal {
-    Nil,
-    Bool(bool),
-    Num(i64),
+    Int32(i32),
+    Int64(i64),
 }
 
 impl Literal {
     fn to_binaryen(&self) -> BinaryenLiteral {
         match self {
-            Literal::Nil => todo!(),
-            Literal::Bool(_) => todo!(),
-            Literal::Num(num) => unsafe { BinaryenLiteralInt64(*num) },
+            Literal::Int32(num) => unsafe { BinaryenLiteralInt32(*num) },
+            Literal::Int64(num) => unsafe { BinaryenLiteralInt64(*num) },
         }
     }
 }

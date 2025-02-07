@@ -16,7 +16,8 @@ pub fn check(program: &Program, print_maybe: bool) -> Result<TypedProgram> {
         .map(maybe_typed_decl_to_typed_decl)
         .collect::<Result<Vec<_>>>()?;
 
-    Ok(TypedProgram::new(decls))
+    let ty = decls.last().unwrap().ty();
+    Ok(TypedProgram { decls, ty })
 }
 
 pub fn check_decls(
@@ -183,7 +184,7 @@ fn check_expr(expr: &Expr, env: &mut HashMap<String, MaybeTy>) -> Result<MaybeTy
             })?;
 
             let ty = match kind {
-                BinOpKind::Eq | BinOpKind::Neq => left_ty,
+                BinOpKind::Eq | BinOpKind::Neq => MaybeTySimple::Expected(TySimple::Bool),
                 BinOpKind::Add | BinOpKind::Sub | BinOpKind::Mul | BinOpKind::Div => {
                     match_type(&left_ty, &MaybeTySimple::Expected(TySimple::Num))
                         .map_err(|_| format!("expected type to be Num: got {left_ty:?}"))?;
@@ -254,8 +255,6 @@ fn check_expr(expr: &Expr, env: &mut HashMap<String, MaybeTy>) -> Result<MaybeTy
             let cond = check_expr(cond, env)?;
             let do_ = check_expr(do_, env)?;
 
-            let do_ty = do_.ty.clone();
-
             match_type(&cond.ty, &MaybeTySimple::Expected(TySimple::Bool))
                 .map_err(|_| "condition should be bool".to_string())?;
 
@@ -264,7 +263,7 @@ fn check_expr(expr: &Expr, env: &mut HashMap<String, MaybeTy>) -> Result<MaybeTy
                     cond: Box::new(cond),
                     do_: Box::new(do_),
                 },
-                ty: do_ty,
+                ty: MaybeTySimple::Expected(TySimple::Nil),
             })
         }
 

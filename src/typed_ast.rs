@@ -5,11 +5,6 @@ use std::{cell::RefCell, rc::Rc};
 
 // Generic stuff
 
-// pub trait TyInterface {
-//     type Simple;
-//     type Function: Clone + std::fmt::Debug + PartialEq;
-// }
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct TyExpr<TS, TF> {
     pub kind: ExprKind<Self, TyDecl<TS, TF>>,
@@ -85,16 +80,9 @@ impl TypedDecl {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct TypedProgram(Vec<TypedDecl>);
-
-impl TypedProgram {
-    pub fn new(decls: Vec<TypedDecl>) -> Self {
-        Self(decls)
-    }
-
-    pub fn decls(&self) -> &[TypedDecl] {
-        &self.0
-    }
+pub struct TypedProgram {
+    pub decls: Vec<TypedDecl>,
+    pub ty: TySimple,
 }
 
 // Maybe type stuff
