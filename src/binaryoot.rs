@@ -14,6 +14,28 @@ impl Module {
         }
     }
 
+    pub fn add_function_import(
+        &self,
+        internal_name: &str,
+        external_name: (&str, &str),
+        ty: &FnType,
+    ) {
+        let internal_name = std::ffi::CString::new(internal_name).unwrap();
+        let external_module_name = std::ffi::CString::new(external_name.0).unwrap();
+        let external_base_name = std::ffi::CString::new(external_name.1).unwrap();
+
+        unsafe {
+            BinaryenAddFunctionImport(
+                self.inner,
+                internal_name.as_ptr(),
+                external_module_name.as_ptr(),
+                external_base_name.as_ptr(),
+                ty.binaryen_params,
+                ty.binaryen_results,
+            )
+        }
+    }
+
     pub fn local_get(&self, i: usize, ty: Type) -> Expression {
         Expression {
             inner: unsafe { BinaryenLocalGet(self.inner, i as u32, ty.to_binaryen()) },

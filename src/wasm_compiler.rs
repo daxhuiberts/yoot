@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use crate::ast::ExprKind;
 /// Uses the Binaryoot abstraction to build a wasm program.
-use crate::binaryoot::{Op::*, *};
+use crate::binaryoot::*;
 use crate::typed_ast::*;
 use crate::util::{IterExt, Result};
 
@@ -54,6 +54,17 @@ impl Scope {
 pub fn to_wasm_module(program: &TypedProgram) -> Result<WasmModule> {
     let mut module = Module::new();
 
+    let mut env = HashMap::new();
+    define_import_function(
+        &module,
+        &mut env,
+        "print_i64",
+        TyFunction {
+            args: vec![TySimple::Num],
+            ret: TySimple::Nil,
+        },
+    );
+
     let function = compile_function(
         &mut module,
         "main",
@@ -62,12 +73,22 @@ pub fn to_wasm_module(program: &TypedProgram) -> Result<WasmModule> {
             ret: program.ty.clone(),
         },
         &[],
-        &HashMap::new(),
+        &env,
         &program.decls,
     );
     module.add_function_export(&function, "main");
 
     Ok(WasmModule(module))
+}
+
+fn define_import_function(
+    module: &Module,
+    env: &mut HashMap<String, TyFunction>,
+    name: &str,
+    ty: TyFunction,
+) {
+    module.add_function_import(name, ("foo", name), &ty_function_to_fn_type(&ty));
+    env.insert(name.to_owned(), ty);
 }
 
 pub fn print(module: &WasmModule) {
@@ -180,7 +201,15 @@ fn compile_expr(module: &mut Module, scope: &mut Scope, expr: &TypedExpr) -> Exp
         }
         ExprKind::Print { expr } => {
             // todo!("implement print")
-            module.nop()
+            let fun = match expr.ty {
+                TySimple::Nil => todo!(),
+                TySimple::Bool => todo!(),
+                TySimple::Num => "print_i64",
+            };
+            let ret_ty = from_ty(&scope.get_fun_ty(fun).ret);
+            let expr = compile_expr(module, scope, expr);
+            module.call(fun, vec![expr], ret_ty)
+            // module.nop()
         }
         ExprKind::Block { decls } => compile_decls(module, scope, decls),
     }
@@ -202,15 +231,19 @@ fn compile_function(
         .map(|(_, ty)| from_ty(&ty))
         .collect::<Vec<_>>();
     println!("VARS: #{vars:?}");
-    let ty = FnType::new(
-        &ty.args.iter().map(from_ty).collect::<Vec<_>>(),
-        from_ty(&ty.ret),
-    );
+    let ty = ty_function_to_fn_type(ty);
     module.add_function(name, &ty, vars, expression)
 }
 
 fn get_ty_from_decls(decls: &[TypedDecl]) -> TySimple {
     decls.last().unwrap().ty()
+}
+
+fn ty_function_to_fn_type(ty: &TyFunction) -> FnType {
+    FnType::new(
+        &ty.args.iter().map(from_ty).collect::<Vec<_>>(),
+        from_ty(&ty.ret),
+    )
 }
 
 fn from_ty(ty: &TySimple) -> Type {

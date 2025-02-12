@@ -89,7 +89,10 @@ mod test {
             input.into_iter().tuple_merger(f).collect()
         }
 
-        assert_eq!(tuple_merger::<i32, _>(vec![], |_, _| None), vec![]);
+        assert_eq!(
+            tuple_merger::<i32, _>(vec![], |_, _| None),
+            Vec::<i32>::new()
+        );
         assert_eq!(tuple_merger::<i32, _>(vec![1], |_, _| None), vec![1]);
         assert_eq!(tuple_merger::<i32, _>(vec![1, 2], |_, _| None), vec![1, 2]);
         assert_eq!(
@@ -101,7 +104,10 @@ mod test {
             vec![1, 2, 3, 4]
         );
 
-        assert_eq!(tuple_merger::<i32, _>(vec![], |_, _| Some(9)), vec![]);
+        assert_eq!(
+            tuple_merger::<i32, _>(vec![], |_, _| Some(9)),
+            Vec::<i32>::new()
+        );
         assert_eq!(tuple_merger::<i32, _>(vec![1], |_, _| Some(9)), vec![1]);
         assert_eq!(tuple_merger::<i32, _>(vec![1, 2], |_, _| Some(9)), vec![9]);
         assert_eq!(

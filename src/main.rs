@@ -20,6 +20,9 @@ struct Args {
     #[arg(long)]
     no_interpret: bool,
 
+    #[arg(short, long)]
+    output_file: Option<String>,
+
     filename: String,
 }
 
@@ -61,12 +64,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let result = yoot::compile_to_wasm(&module)?;
 
-    let mut output_path: std::ffi::OsString = path.file_stem().unwrap().into();
-    output_path.push(".wasm");
-
-    println!("OUTPUT TO: {output_path:?}",);
-
-    std::fs::File::create(&output_path)?.write_all(&result)?;
+    if let Some(output_file) = args.output_file {
+        std::fs::File::create(&output_file)?.write_all(&result)?;
+    } else {
+        yoot::run(&result)?;
+    }
 
     Ok(())
 }
