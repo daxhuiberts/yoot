@@ -18,8 +18,11 @@ pub fn run_inner(binary: &[u8]) -> std::result::Result<(), wasmtime::Error> {
     )?;
     let mut store: Store<u32> = Store::new(&engine, 4);
     let instance = linker.instantiate(&mut store, &module)?;
-    let hello = instance.get_typed_func::<(), ()>(&mut store, "main")?;
-    let result = hello.call(&mut store, ())?;
+
+    let main = instance.get_func(&mut store, "main").unwrap();
+    let mut result = vec![Val::I32(0); main.ty(&store).results().count()];
+    main.call(&mut store, &[], &mut result)?;
+
     println!("RUN RESULT: {result:?}");
 
     Ok(())
