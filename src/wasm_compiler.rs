@@ -129,7 +129,7 @@ fn compile_decl(module: &mut Module, scope: &mut Scope, decl: &TypedDecl) -> Opt
         TypedDecl::Ass { name, expr, ty } => {
             let expression = compile_decls(module, scope, expr);
             let index = scope.get_or_add_var(name.clone(), ty.clone());
-            println!("SCOPE AFTER VARS PUSH: {scope:?}");
+            // println!("SCOPE AFTER VARS PUSH: {scope:?}");
             Some(module.local_set(index, expression))
         }
         TypedDecl::Fun {
@@ -149,15 +149,32 @@ fn compile_decl(module: &mut Module, scope: &mut Scope, decl: &TypedDecl) -> Opt
 fn compile_expr(module: &mut Module, scope: &mut Scope, expr: &TypedExpr) -> Expression {
     match &expr.kind {
         ExprKind::Lit { lit } => match lit {
-            crate::ast::LitKind::Nil => todo!(),
-            crate::ast::LitKind::Bool(_) => todo!(),
+            crate::ast::LitKind::Nil => {
+                // todo!()
+                module.nop()
+            }
+            crate::ast::LitKind::Bool(bool) => module.const_(Literal::Int32(*bool as i32)),
             crate::ast::LitKind::Num(num) => module.const_(Literal::Int64(*num)),
         },
         ExprKind::Ident { name } => {
             let index = scope.get_local_index(name).expect("var should exist");
             module.local_get(index, from_ty(&expr.ty))
         }
-        ExprKind::UnOp { kind, expr } => todo!("implement unop"),
+        crate::ast::ExprKind::UnOp {
+            kind: crate::ast::UnOpKind::Neg,
+            expr,
+        } => {
+            let zero = module.const_(Literal::Int64(0));
+            let expr = compile_expr(module, scope, expr);
+            module.binary(Op::SubInt64, zero, expr)
+        }
+        crate::ast::ExprKind::UnOp {
+            kind: crate::ast::UnOpKind::Not,
+            expr,
+        } => {
+            let expr = compile_expr(module, scope, expr);
+            module.unary(Op::EqZInt32, expr)
+        }
         ExprKind::BinOp { kind, left, right } => {
             let left_expr = compile_expr(module, scope, left);
             let right_expr = compile_expr(module, scope, right);
@@ -181,10 +198,17 @@ fn compile_expr(module: &mut Module, scope: &mut Scope, expr: &TypedExpr) -> Exp
                 crate::ast::BinOpKind::Lt => todo!("implement binop Lt"),
                 crate::ast::BinOpKind::Lte => module.binary(Op::LeSInt64, left_expr, right_expr),
                 crate::ast::BinOpKind::And => todo!("implement binop And"),
-                crate::ast::BinOpKind::Or => todo!("implement binop Or"),
+                crate::ast::BinOpKind::Or => module.binary(Op::OrInt32, left_expr, right_expr),
             }
         }
-        ExprKind::If { cond, then, else_ } => todo!("implement if"),
+        ExprKind::If { cond, then, else_ } => {
+            let cond = compile_expr(module, scope, cond);
+            let then = compile_expr(module, scope, then);
+            let else_ = else_
+                .as_ref()
+                .map(|else_| compile_expr(module, scope, else_));
+            module.if_(cond, then, else_)
+        }
         ExprKind::While { cond, do_ } => {
             let cond = compile_expr(module, scope, cond);
             let do_ = compile_expr(module, scope, do_);
@@ -230,7 +254,7 @@ fn compile_function(
         .iter()
         .map(|(_, ty)| from_ty(&ty))
         .collect::<Vec<_>>();
-    println!("VARS: #{vars:?}");
+    // println!("VARS: #{vars:?}");
     let ty = ty_function_to_fn_type(ty);
     module.add_function(name, &ty, vars, expression)
 }

@@ -76,6 +76,22 @@ impl Module {
         }
     }
 
+    pub fn if_(
+        &self,
+        condition: Expression,
+        then: Expression,
+        else_: Option<Expression>,
+    ) -> Expression {
+        let else_ = if let Some(else_) = else_ {
+            else_.inner
+        } else {
+            std::ptr::null_mut()
+        };
+        Expression {
+            inner: unsafe { BinaryenIf(self.inner, condition.inner, then.inner, else_) },
+        }
+    }
+
     pub fn block(&self, expressions: Vec<Expression>) -> Expression {
         let expressions = expressions.into_iter().map(|e| e.inner).collect::<Vec<_>>();
         let (ptr, len) = to_raw_parts(expressions);
@@ -113,6 +129,12 @@ impl Module {
 
         Expression {
             inner: unsafe { BinaryenLoop(self.inner, in_.as_ptr() as *const i8, body.inner) },
+        }
+    }
+
+    pub fn unary(&self, op: Op, expr: Expression) -> Expression {
+        Expression {
+            inner: unsafe { BinaryenUnary(self.inner, op.to_binaryen(), expr.inner) },
         }
     }
 
@@ -248,8 +270,10 @@ pub enum Op {
     AddInt64,
     EqInt32,
     EqInt64,
+    EqZInt32,
     GtSInt64,
     LeSInt64,
+    OrInt32,
     SubInt64,
 }
 
@@ -260,8 +284,10 @@ impl Op {
             Self::AddInt64 => unsafe { BinaryenAddInt64() },
             Self::EqInt32 => unsafe { BinaryenEqInt32() },
             Self::EqInt64 => unsafe { BinaryenEqInt64() },
+            Self::EqZInt32 => unsafe { BinaryenEqZInt32() },
             Self::GtSInt64 => unsafe { BinaryenGtSInt64() },
             Self::LeSInt64 => unsafe { BinaryenLeSInt64() },
+            Self::OrInt32 => unsafe { BinaryenOrInt32() },
             Self::SubInt64 => unsafe { BinaryenSubInt64() },
         }
     }
