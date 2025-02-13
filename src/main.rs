@@ -58,16 +58,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let typed_program = typed_program?;
 
     let module = yoot::to_wasm_module(&typed_program)?;
-
     println!("WASM MODULE:");
     yoot::print_module(&module);
-
     let result = yoot::compile_to_wasm(&module)?;
+    yoot::print2(&result);
+
+    let result2 = yoot::compile2(&typed_program)?;
+    yoot::print2(&result2);
 
     if let Some(output_file) = args.output_file {
         std::fs::File::create(&output_file)?.write_all(&result)?;
     } else {
         yoot::run(&result)?;
+        yoot::run(&result2)?;
     }
 
     Ok(())
