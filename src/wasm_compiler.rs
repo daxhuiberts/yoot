@@ -2,135 +2,88 @@
 
 use std::collections::HashMap;
 
-use crate::ast::ExprKind;
-/// Uses the Binaryoot abstraction to build a wasm program.
-use crate::binaryoot::*;
 use crate::typed_ast::*;
-use crate::util::{IterExt, Result};
+use crate::util::Result;
+use crate::wasm_builder::*;
 
-pub struct WasmModule(Module);
+use wasm_encoder::{
+    BlockType, CodeSection, ExportKind, ExportSection, Function, FunctionSection, ImportSection,
+    Instruction::{self, *},
+    Module, TypeSection, ValType,
+};
 
-#[derive(Debug)]
-struct Scope {
-    args: Vec<(String, TySimple)>,
-    vars: Vec<(String, TySimple)>,
-    funs: HashMap<String, TyFunction>,
+pub fn compile(program: &TypedProgram) -> Result<Vec<u8>> {
+    let mut app = App::new();
+    let mut scope = HashMap::new();
+
+    let function_index = app.add_function_import("foo", "print_i64", vec![ValType::I64], vec![]);
+    scope.insert("print_i64".into(), function_index);
+
+    let return_ty = match program.ty {
+        TySimple::Nil => None,
+        TySimple::Bool => Some(ValType::I32),
+        TySimple::Num => Some(ValType::I64),
+    };
+
+    let function_index = app.add_function(scope, vec![], return_ty, |fun| {
+        compile_decls(fun, &program.decls);
+    });
+
+    app.add_export("main", function_index);
+
+    let wasm_bytes = app.finish();
+
+    Ok(wasm_bytes)
 }
 
-impl Scope {
-    fn new(args: &[&str], arg_tys: &[TySimple], funs: &HashMap<String, TyFunction>) -> Self {
-        Self {
-            args: args
-                .iter()
-                .zip(arg_tys)
-                .map(|(a, t)| (String::from(*a), t.clone()))
-                .collect(),
-            vars: vec![],
-            funs: funs.clone(),
-        }
-    }
-
-    fn get_local_index(&self, name: &str) -> Option<usize> {
-        self.args
-            .iter()
-            .chain(&self.vars)
-            .position(|var| var.0 == *name)
-    }
-
-    fn get_or_add_var(&mut self, name: String, ty: TySimple) -> usize {
-        if let Some(index) = self.get_local_index(&name) {
-            index
-        } else {
-            self.vars.push((name, ty));
-            self.args.len() + self.vars.len() - 1
-        }
-    }
-
-    fn get_fun_ty(&self, name: &str) -> &TyFunction {
-        self.funs.get(name).unwrap()
-    }
+pub fn print(src: &[u8]) {
+    println!("{}", wasmprinter::print_bytes(src).unwrap());
 }
 
-pub fn to_wasm_module(program: &TypedProgram) -> Result<WasmModule> {
-    let mut module = Module::new();
+// fn compile_function()
 
-    let mut env = HashMap::new();
-    define_import_function(
-        &module,
-        &mut env,
-        "print_i64",
-        TyFunction {
-            args: vec![TySimple::Num],
-            ret: TySimple::Nil,
-        },
-    );
-
-    let function = compile_function(
-        &mut module,
-        "main",
-        &TyFunction {
-            args: vec![],
-            ret: program.ty.clone(),
-        },
-        &[],
-        &env,
-        &program.decls,
-    );
-    module.add_function_export(&function, "main");
-
-    Ok(WasmModule(module))
-}
-
-fn define_import_function(
-    module: &Module,
-    env: &mut HashMap<String, TyFunction>,
-    name: &str,
-    ty: TyFunction,
-) {
-    module.add_function_import(name, ("foo", name), &ty_function_to_fn_type(&ty));
-    env.insert(name.to_owned(), ty);
-}
-
-pub fn print(module: &WasmModule) {
-    module.0.print();
-}
-
-pub fn compile(module: &WasmModule) -> Result<Vec<u8>> {
-    Ok(module.0.compile())
-}
-
-fn compile_decls(module: &mut Module, scope: &mut Scope, decls: &[TypedDecl]) -> Expression {
+fn compile_decls(fun: &mut Fun, decls: &[TypedDecl]) {
+    // fn compile_decls(module: &mut Module, scope: &mut Scope, decls: &[TypedDecl]) -> Expression {
     let len = decls.len();
 
     let mut expressions = decls
         .iter()
         .enumerate()
-        .filter_map(|(index, decl)| {
-            let mut expression = compile_decl(module, scope, decl)?;
-            let ty = from_ty(&decl.ty());
-            if index < len - 1 && matches!(decl, TyDecl::Stm { .. }) && !matches!(ty, Type::None) {
+        .map(|(index, decl)| {
+            compile_decl(fun, decl);
+            // let ty = from_ty(&decl.ty());
+            // println!("{index} < {len} - 1 = {}", index < len - 1);
+            // println!("{decl:?}");
+            // println!("TY {:?}", decl.ty());
+
+            if index < len - 1
+                && matches!(decl, TyDecl::Stm { .. })
+                && !matches!(decl.ty(), TySimple::Nil)
+            {
                 println!("DROP?!?!?");
-                expression = module.drop_(expression);
+                fun.instr(Drop);
+                // expression = module.drop_(expression);
             }
-            Some(expression)
+            // Some(expression)
         })
         .collect::<Vec<_>>();
 
-    match expressions.len() {
-        0 => module.nop(),
-        1 => expressions.remove(0),
-        _ => module.block(expressions),
-    }
+    // match expressions.len() {
+    //     0 => module.nop(),
+    //     1 => expressions.remove(0),
+    //     _ => module.block(expressions),
+    // }
 }
 
-fn compile_decl(module: &mut Module, scope: &mut Scope, decl: &TypedDecl) -> Option<Expression> {
+fn compile_decl(fun: &mut Fun, decl: &TypedDecl) -> Option<()> {
+    // fn compile_decl(module: &mut Module, scope: &mut Scope, decl: &TypedDecl) -> Option<Expression> {
     match decl {
-        TypedDecl::Stm { expr, ty } => Some(compile_expr(module, scope, expr)),
+        TypedDecl::Stm { expr, ty } => Some(compile_expr(fun, expr)),
         TypedDecl::Ass { name, expr, ty } => {
-            let expression = compile_decls(module, scope, expr);
-            let index = scope.get_or_add_var(name.clone(), ty.clone());
-            // println!("SCOPE AFTER VARS PUSH: {scope:?}");
-            Some(module.local_set(index, expression))
+            compile_decls(fun, expr);
+            let index = fun.get_or_add_local(name.clone(), ty_to_val_ty(ty).unwrap());
+            fun.instr(LocalSet(index));
+            Some(())
         }
         TypedDecl::Fun {
             name,
@@ -138,142 +91,133 @@ fn compile_decl(module: &mut Module, scope: &mut Scope, decl: &TypedDecl) -> Opt
             body,
             ty,
         } => {
-            let args: Vec<&str> = args.iter().map(<_>::as_ref).collect();
-            compile_function(module, name, ty, &args, &scope.funs, body);
-            scope.funs.insert(name.clone(), ty.clone());
-            None
+            // let args: Vec<&str> = args.iter().map(<_>::as_ref).collect();
+            // compile_function(module, name, ty, &args, &scope.funs, body);
+            // scope.funs.insert(name.clone(), ty.clone());
+            // None
+            // let scope = HashMap::new();
+            let scope = fun.funs().clone();
+            let args = args
+                .iter()
+                .zip(&ty.args)
+                .map(|(name, ty)| (name.clone(), ty_to_val_ty(ty).unwrap()))
+                .collect::<Vec<_>>();
+            let function_index =
+                fun.app()
+                    .add_function(scope, args, ty_to_val_ty(&ty.ret), |fun| {
+                        compile_decls(fun, body);
+                    });
+            fun.add_function(name.clone(), function_index);
+            Some(())
+            // todo!()
         }
     }
 }
 
-fn compile_expr(module: &mut Module, scope: &mut Scope, expr: &TypedExpr) -> Expression {
+fn compile_expr(fun: &mut Fun, expr: &TypedExpr) {
     match &expr.kind {
-        ExprKind::Lit { lit } => match lit {
+        crate::ast::ExprKind::Lit { lit } => match lit {
             crate::ast::LitKind::Nil => {
                 // todo!()
-                module.nop()
             }
-            crate::ast::LitKind::Bool(bool) => module.const_(Literal::Int32(*bool as i32)),
-            crate::ast::LitKind::Num(num) => module.const_(Literal::Int64(*num)),
+            crate::ast::LitKind::Bool(bool) => fun.instr(I32Const(*bool as i32)),
+            crate::ast::LitKind::Num(num) => fun.instr(I64Const(*num)),
         },
-        ExprKind::Ident { name } => {
-            let index = scope.get_local_index(name).expect("var should exist");
-            module.local_get(index, from_ty(&expr.ty))
+        crate::ast::ExprKind::Ident { name } => {
+            let index = fun.local_index(name).unwrap();
+            fun.instr(LocalGet(index));
+            // todo!()
         }
         crate::ast::ExprKind::UnOp {
             kind: crate::ast::UnOpKind::Neg,
             expr,
         } => {
-            let zero = module.const_(Literal::Int64(0));
-            let expr = compile_expr(module, scope, expr);
-            module.binary(Op::SubInt64, zero, expr)
+            fun.instr(I64Const(0));
+            compile_expr(fun, expr);
+            fun.instr(I64Sub);
         }
         crate::ast::ExprKind::UnOp {
             kind: crate::ast::UnOpKind::Not,
             expr,
         } => {
-            let expr = compile_expr(module, scope, expr);
-            module.unary(Op::EqZInt32, expr)
+            compile_expr(fun, expr);
+            fun.instr(I32Eqz);
         }
-        ExprKind::BinOp { kind, left, right } => {
-            let left_expr = compile_expr(module, scope, left);
-            let right_expr = compile_expr(module, scope, right);
-
+        crate::ast::ExprKind::BinOp { kind, left, right } => {
+            compile_expr(fun, left);
+            compile_expr(fun, right);
             match kind {
-                crate::ast::BinOpKind::Add => module.binary(Op::AddInt64, left_expr, right_expr),
-                crate::ast::BinOpKind::Sub => module.binary(Op::SubInt64, left_expr, right_expr),
-                crate::ast::BinOpKind::Mul => todo!("implement binop Mul"),
-                crate::ast::BinOpKind::Div => todo!("implement binop Div"),
+                crate::ast::BinOpKind::Add => fun.instr(I64Add),
+                crate::ast::BinOpKind::Sub => fun.instr(I64Sub),
+                crate::ast::BinOpKind::Mul => todo!(),
+                crate::ast::BinOpKind::Div => todo!(),
                 crate::ast::BinOpKind::Eq => {
                     let op = match left.ty {
-                        TySimple::Bool => Op::EqInt32,
-                        TySimple::Num => Op::EqInt64,
+                        TySimple::Bool => I32Eq,
+                        TySimple::Num => I64Eq,
                         _ => panic!("{:?} should not exist here", expr.ty),
                     };
-                    module.binary(op, left_expr, right_expr)
+                    fun.instr(op)
                 }
-                crate::ast::BinOpKind::Neq => todo!("implement binop Neq"),
-                crate::ast::BinOpKind::Gt => module.binary(Op::GtSInt64, left_expr, right_expr),
-                crate::ast::BinOpKind::Gte => todo!("implement binop Gte"),
-                crate::ast::BinOpKind::Lt => todo!("implement binop Lt"),
-                crate::ast::BinOpKind::Lte => module.binary(Op::LeSInt64, left_expr, right_expr),
-                crate::ast::BinOpKind::And => todo!("implement binop And"),
-                crate::ast::BinOpKind::Or => module.binary(Op::OrInt32, left_expr, right_expr),
+                crate::ast::BinOpKind::Neq => todo!(),
+                crate::ast::BinOpKind::Gt => fun.instr(I64GtS),
+                crate::ast::BinOpKind::Gte => todo!(),
+                crate::ast::BinOpKind::Lt => todo!(),
+                crate::ast::BinOpKind::Lte => fun.instr(I64LeS),
+                crate::ast::BinOpKind::And => todo!(),
+                crate::ast::BinOpKind::Or => fun.instr(I32Or),
             }
         }
-        ExprKind::If { cond, then, else_ } => {
-            let cond = compile_expr(module, scope, cond);
-            let then = compile_expr(module, scope, then);
-            let else_ = else_
-                .as_ref()
-                .map(|else_| compile_expr(module, scope, else_));
-            module.if_(cond, then, else_)
-        }
-        ExprKind::While { cond, do_ } => {
-            let cond = compile_expr(module, scope, cond);
-            let do_ = compile_expr(module, scope, do_);
+        crate::ast::ExprKind::If { cond, then, else_ } => {
+            // let cond = compile_expr(module, scope, cond);
+            // let do_ = compile_expr(module, scope, do_);
 
-            module.loop_("foo", module.break_("foo", cond, do_))
+            // module.loop_("foo", module.break_("foo", cond, do_))
+            //
+
+            compile_expr(fun, cond);
+            fun.instr(If(ty_to_block_ty(&expr.ty)));
+            compile_expr(fun, then);
+            if let Some(else_) = else_ {
+                fun.instr(Else);
+                compile_expr(fun, else_);
+            }
+            fun.instr(End);
         }
-        ExprKind::Call { name, args } => {
-            let args = args
-                .iter()
-                .map(|arg| compile_expr(module, scope, arg))
-                .collect();
-            let ret_ty = from_ty(&scope.get_fun_ty(name).ret);
-            module.call(name, args, ret_ty)
+        crate::ast::ExprKind::While { cond, do_ } => {
+            fun.instr(Loop(BlockType::Empty));
+            compile_expr(fun, do_);
+            compile_expr(fun, cond);
+            fun.instr(BrIf(0));
+            fun.instr(End);
         }
-        ExprKind::Print { expr } => {
-            // todo!("implement print")
-            let fun = match expr.ty {
-                TySimple::Nil => todo!(),
-                TySimple::Bool => todo!(),
-                TySimple::Num => "print_i64",
-            };
-            let ret_ty = from_ty(&scope.get_fun_ty(fun).ret);
-            let expr = compile_expr(module, scope, expr);
-            module.call(fun, vec![expr], ret_ty)
-            // module.nop()
+        crate::ast::ExprKind::Call { name, args } => {
+            let function_index = fun.function_index(name);
+            args.iter().for_each(|arg| compile_expr(fun, arg));
+            fun.instr(Call(function_index));
         }
-        ExprKind::Block { decls } => compile_decls(module, scope, decls),
+        crate::ast::ExprKind::Print { expr } => {
+            compile_expr(fun, expr);
+            let function_index = fun.function_index("print_i64");
+            fun.instr(Call(function_index));
+        }
+        crate::ast::ExprKind::Block { decls } => {
+            compile_decls(fun, decls);
+        }
     }
 }
 
-fn compile_function(
-    module: &mut Module,
-    name: &str,
-    ty: &TyFunction,
-    args: &[&str],
-    funs: &HashMap<String, TyFunction>,
-    decls: &[TypedDecl],
-) -> Function {
-    let mut scope = Scope::new(args, &ty.args, funs);
-    let expression = compile_decls(module, &mut scope, decls);
-    let vars = scope
-        .vars
-        .iter()
-        .map(|(_, ty)| from_ty(&ty))
-        .collect::<Vec<_>>();
-    // println!("VARS: #{vars:?}");
-    let ty = ty_function_to_fn_type(ty);
-    module.add_function(name, &ty, vars, expression)
-}
-
-fn get_ty_from_decls(decls: &[TypedDecl]) -> TySimple {
-    decls.last().unwrap().ty()
-}
-
-fn ty_function_to_fn_type(ty: &TyFunction) -> FnType {
-    FnType::new(
-        &ty.args.iter().map(from_ty).collect::<Vec<_>>(),
-        from_ty(&ty.ret),
-    )
-}
-
-fn from_ty(ty: &TySimple) -> Type {
+fn ty_to_val_ty(ty: &TySimple) -> Option<ValType> {
     match ty {
-        TySimple::Nil => Type::None,
-        TySimple::Bool => Type::Int32,
-        TySimple::Num => Type::Int64,
+        TySimple::Nil => None,
+        TySimple::Bool => Some(ValType::I32),
+        TySimple::Num => Some(ValType::I64),
+    }
+}
+
+fn ty_to_block_ty(ty: &TySimple) -> BlockType {
+    match ty_to_val_ty(ty) {
+        Some(ty) => BlockType::Result(ty),
+        None => BlockType::Empty,
     }
 }
