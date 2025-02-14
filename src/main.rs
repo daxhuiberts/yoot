@@ -47,15 +47,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("TYPED PROGRAM: {typed_program:#?}");
     }
 
+    if args.interpret {
+        let result = yoot::interpret(&program);
+        println!("INTERPRETER RESULT: {result:?}");
+    }
+
     let result = yoot::compile(&typed_program)?;
     if args.print_all || args.print_wasm {
         println!("WASM MODULE:");
         yoot::print(&result);
-    }
-
-    if args.interpret {
-        let result = yoot::interpret(&program);
-        println!("INTERPRETER RESULT: {result:?}");
     }
 
     if let Some(output_file) = args.output_file {

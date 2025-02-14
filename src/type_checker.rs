@@ -136,6 +136,15 @@ fn check_expr(expr: &Expr, env: &mut HashMap<String, MaybeTy>) -> Result<MaybeTy
             ty: MaybeTySimple::Expected(TySimple::Num),
         }),
 
+        ExprKind::Lit {
+            lit: LitKind::String(val),
+        } => Ok(MaybeTypedExpr {
+            kind: ExprKind::Lit {
+                lit: LitKind::String(val.clone()),
+            },
+            ty: MaybeTySimple::Expected(TySimple::String),
+        }),
+
         ExprKind::Ident { name } => match env.get(name) {
             Some(MaybeTy::Simple(ty)) => Ok(MaybeTypedExpr {
                 kind: ExprKind::Ident { name: name.clone() },

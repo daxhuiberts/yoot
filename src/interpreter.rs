@@ -8,6 +8,7 @@ pub enum Value {
     Nil,
     Bool(bool),
     Num(i64),
+    String(String),
 }
 
 #[derive(Clone, Debug)]
@@ -59,6 +60,10 @@ fn eval_expr(expr: &Expr, vars: &mut HashMap<String, Var>) -> Result<Value> {
         ExprKind::Lit {
             lit: LitKind::Num(val),
         } => Ok(Value::Num(*val)),
+
+        ExprKind::Lit {
+            lit: LitKind::String(val),
+        } => Ok(Value::String(val.clone())),
 
         ExprKind::Ident { name } => {
             if let Some(var) = vars.get(name) {

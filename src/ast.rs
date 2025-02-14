@@ -3,6 +3,7 @@ pub enum LitKind {
     Nil,
     Bool(bool),
     Num(i64),
+    String(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -129,6 +130,16 @@ pub mod macros {
             Expr {
                 kind: ExprKind::Lit {
                     lit: LitKind::Num($value),
+                }
+            }
+        };
+    }
+
+    pubmacro! { string,
+        ($value:literal) => {
+            Expr {
+                kind: ExprKind::Lit {
+                    lit: LitKind::String($value.to_owned()),
                 }
             }
         };

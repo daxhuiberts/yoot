@@ -37,6 +37,7 @@ pub enum TySimple {
     Nil,
     Bool,
     Num,
+    String,
 }
 
 impl FromStr for TySimple {

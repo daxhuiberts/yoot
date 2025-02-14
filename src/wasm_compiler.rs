@@ -19,11 +19,7 @@ pub fn compile(program: &TypedProgram) -> Result<Vec<u8>> {
     let function_index = app.add_function_import("foo", "print_i64", vec![ValType::I64], vec![]);
     scope.insert("print_i64".into(), function_index);
 
-    let return_ty = match program.ty {
-        TySimple::Nil => None,
-        TySimple::Bool => Some(ValType::I32),
-        TySimple::Num => Some(ValType::I64),
-    };
+    let return_ty = ty_to_val_ty(&program.ty);
 
     let function_index = app.add_function(scope, vec![], return_ty, |fun| {
         compile_decls(fun, &program.decls);
@@ -122,6 +118,7 @@ fn compile_expr(fun: &mut Fun, expr: &TypedExpr) {
             }
             crate::ast::LitKind::Bool(bool) => fun.instr(I32Const(*bool as i32)),
             crate::ast::LitKind::Num(num) => fun.instr(I64Const(*num)),
+            crate::ast::LitKind::String(_) => todo!(),
         },
         crate::ast::ExprKind::Ident { name } => {
             let index = fun.local_index(name).unwrap();
@@ -212,6 +209,7 @@ fn ty_to_val_ty(ty: &TySimple) -> Option<ValType> {
         TySimple::Nil => None,
         TySimple::Bool => Some(ValType::I32),
         TySimple::Num => Some(ValType::I64),
+        TySimple::String => todo!(),
     }
 }
 
