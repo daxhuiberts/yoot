@@ -7,25 +7,51 @@ use crate::util::Result;
 use crate::wasm_builder::*;
 
 use wasm_encoder::{
-    BlockType, CodeSection, ExportKind, ExportSection, Function, FunctionSection, ImportSection,
+    BlockType, CodeSection, ConstExpr, ExportKind, ExportSection, Function, FunctionSection,
+    GlobalType, ImportSection,
     Instruction::{self, *},
-    Module, TypeSection, ValType,
+    MemArg, Module, TypeSection, ValType,
 };
 
 pub fn compile(program: &TypedProgram) -> Result<Vec<u8>> {
     let mut app = App::new();
     let mut scope = HashMap::new();
 
+    let global_index = app.add_global(
+        GlobalType {
+            val_type: ValType::I32,
+            mutable: true,
+            shared: false,
+        },
+        &ConstExpr::i32_const(0),
+    );
+    assert_eq!(global_index, 0);
+
     let function_index = app.add_function_import("foo", "print_i64", vec![ValType::I64], vec![]);
     scope.insert("print_i64".into(), function_index);
+    let function_index = app.add_function_import("foo", "print_string", vec![ValType::I32], vec![]);
+    scope.insert("print_string".into(), function_index);
 
-    let return_ty = ty_to_val_ty(&program.ty);
+    let function_index = app.add_function(
+        HashMap::new(),
+        vec![("size".into(), ValType::I32)],
+        Some(ValType::I32),
+        |fun| {
+            let size = fun.local_index("size").unwrap();
+            fun.instr(GlobalGet(0));
+            fun.instr(GlobalGet(0));
+            fun.instr(LocalGet(size));
+            fun.instr(I32Add);
+            fun.instr(GlobalSet(0));
+        },
+    );
+    scope.insert("allocate".into(), function_index);
 
-    let function_index = app.add_function(scope, vec![], return_ty, |fun| {
+    let function_index = app.add_function(scope, vec![], ty_to_val_ty(&program.ty), |fun| {
         compile_decls(fun, &program.decls);
     });
 
-    app.add_export("main", function_index);
+    app.add_export("main", ExportKind::Func, function_index);
 
     let wasm_bytes = app.finish();
 
@@ -118,7 +144,40 @@ fn compile_expr(fun: &mut Fun, expr: &TypedExpr) {
             }
             crate::ast::LitKind::Bool(bool) => fun.instr(I32Const(*bool as i32)),
             crate::ast::LitKind::Num(num) => fun.instr(I64Const(*num)),
-            crate::ast::LitKind::String(_) => todo!(),
+            crate::ast::LitKind::String(val) => {
+                let data_index = fun.app().add_data(val.clone().into_bytes());
+                let function_index = fun.function_index("allocate");
+                let new_address = fun.get_or_add_local("local".into(), ValType::I32);
+
+                // allocate memory
+                fun.instr(I32Const((val.len() + 4) as i32));
+                fun.instr(Call(function_index));
+                fun.instr(LocalSet(new_address));
+
+                // store length
+                fun.instr(LocalGet(new_address));
+                fun.instr(I32Const(val.len() as i32));
+                fun.instr(I32Store(MemArg {
+                    offset: 0,
+                    align: 0,
+                    memory_index: 0,
+                }));
+
+                // fun.instr(LocalGet(new_address));
+                // let function_index = fun.function_index("print");
+                // fun.instr(Call(function_index));
+
+                // copy string literal from data segment
+                fun.instr(LocalGet(new_address));
+                fun.instr(I32Const(4));
+                fun.instr(I32Add);
+                fun.instr(I32Const(0));
+                fun.instr(I32Const(val.len() as i32));
+                fun.instr(MemoryInit { mem: 0, data_index });
+
+                // return string address
+                fun.instr(LocalGet(new_address));
+            }
         },
         crate::ast::ExprKind::Ident { name } => {
             let index = fun.local_index(name).unwrap();
@@ -195,7 +254,13 @@ fn compile_expr(fun: &mut Fun, expr: &TypedExpr) {
         }
         crate::ast::ExprKind::Print { expr } => {
             compile_expr(fun, expr);
-            let function_index = fun.function_index("print_i64");
+            let print_function = match expr.ty {
+                TySimple::Nil => todo!(),
+                TySimple::Bool => todo!(),
+                TySimple::Num => "print_i64",
+                TySimple::String => "print_string",
+            };
+            let function_index = fun.function_index(print_function);
             fun.instr(Call(function_index));
         }
         crate::ast::ExprKind::Block { decls } => {

@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use wasm_encoder::{
-    CodeSection, EntityType, ExportKind, ExportSection, Function, FunctionSection, ImportSection,
-    Instruction, Module, TypeSection, ValType,
+    CodeSection, ConstExpr, DataCountSection, DataSection, EntityType, ExportKind, ExportSection,
+    Function, FunctionSection, GlobalSection, GlobalType, ImportSection, Instruction,
+    MemorySection, MemoryType, Module, TypeSection, ValType,
 };
 
 #[derive(Debug)]
@@ -9,22 +10,37 @@ pub struct App {
     module: Module,
     types: TypeSection,
     functions: FunctionSection,
+    memory: MemorySection,
+    globals: GlobalSection,
     imports: ImportSection,
     exports: ExportSection,
     codes: CodeSection,
+    datas: DataSection,
     function_count: u32,
     function_implementations: Vec<(u32, Function)>,
 }
 
 impl App {
     pub fn new() -> Self {
+        let mut memory = MemorySection::new();
+        memory.memory(MemoryType {
+            minimum: 1,
+            maximum: None,
+            memory64: false,
+            shared: false,
+            page_size_log2: None,
+        });
+
         Self {
             module: Module::new(),
             types: TypeSection::new(),
             functions: FunctionSection::new(),
+            memory,
+            globals: GlobalSection::new(),
             imports: ImportSection::new(),
             exports: ExportSection::new(),
             codes: CodeSection::new(),
+            datas: DataSection::new(),
             function_count: 0,
             function_implementations: Vec::new(),
         }
@@ -67,15 +83,34 @@ impl App {
         self.types.len() - 1
     }
 
-    pub fn add_export(&mut self, name: &str, function_index: u32) {
-        self.exports.export(name, ExportKind::Func, function_index);
+    pub fn add_export(&mut self, name: &str, kind: ExportKind, function_index: u32) {
+        self.exports.export(name, kind, function_index);
+    }
+
+    pub fn add_global(&mut self, ty: GlobalType, init_expr: &ConstExpr) -> u32 {
+        self.globals.global(ty, init_expr);
+        self.globals.len() - 1
+    }
+
+    pub fn add_data(&mut self, data: Vec<u8>) -> u32 {
+        self.datas.passive(data);
+        self.datas.len() - 1
     }
 
     pub fn finish(mut self) -> Vec<u8> {
         self.module.section(&self.types);
         self.module.section(&self.imports);
         self.module.section(&self.functions);
+
+        self.add_export("memory", ExportKind::Memory, 0);
+        self.module.section(&self.memory);
+
+        self.module.section(&self.globals);
         self.module.section(&self.exports);
+
+        self.module.section(&DataCountSection {
+            count: self.datas.len(),
+        });
 
         self.function_implementations.sort_by_key(|x| x.0);
         self.function_implementations
@@ -86,6 +121,7 @@ impl App {
             });
 
         self.module.section(&self.codes);
+        self.module.section(&self.datas);
 
         self.module.finish()
     }
