@@ -54,21 +54,22 @@ impl App {
         result_ty: Option<ValType>,
         f: F,
     ) -> u32 {
-        let (param_names, param_types) = params.into_iter().unzip();
+        let (param_names, param_types): (Vec<_>, Vec<_>) = params.iter().cloned().unzip();
         let results = result_ty.into_iter().collect::<Vec<_>>();
-        let type_index = self.add_type(param_types, results);
+        let type_index = self.add_function_type(param_types.clone(), results);
 
         // println!("ADD FUNCTION DEFINITION: {name}");
         self.functions.function(type_index);
         let function_index = self.function_count;
         self.function_count += 1;
 
-        let mut fun = Fun::new(self, scope, param_names);
+        let mut fun = Fun::new(self, scope, param_names, param_types);
         f(&mut fun);
 
         // println!("FUN: {fun:#?}");
 
-        let mut f = Function::new_with_locals_types(fun.locals);
+        let mut f =
+            Function::new_with_locals_types((fun.locals[params.len()..]).into_iter().cloned());
         for instruction in fun.instructions {
             f.instruction(&instruction);
         }
@@ -78,7 +79,7 @@ impl App {
         function_index
     }
 
-    fn add_type(&mut self, params: Vec<ValType>, results: Vec<ValType>) -> u32 {
+    fn add_function_type(&mut self, params: Vec<ValType>, results: Vec<ValType>) -> u32 {
         self.types.ty().function(params, results);
         self.types.len() - 1
     }
@@ -133,7 +134,7 @@ impl App {
         params: Vec<ValType>,
         results: Vec<ValType>,
     ) -> u32 {
-        let type_index = self.add_type(params, results);
+        let type_index = self.add_function_type(params, results);
         self.imports
             .import(module, field, EntityType::Function(type_index));
         let function_index = self.function_count;
@@ -152,7 +153,12 @@ pub struct Fun<'a> {
 }
 
 impl<'a> Fun<'a> {
-    fn new(app: &'a mut App, funs: HashMap<String, u32>, args: Vec<String>) -> Self {
+    fn new(
+        app: &'a mut App,
+        funs: HashMap<String, u32>,
+        args: Vec<String>,
+        locals: Vec<ValType>,
+    ) -> Self {
         Self {
             app,
             vars: args
@@ -161,7 +167,7 @@ impl<'a> Fun<'a> {
                 .map(|(index, name)| (name, index as u32))
                 .collect(),
             funs,
-            locals: vec![],
+            locals,
             instructions: vec![],
         }
     }
@@ -179,11 +185,16 @@ impl<'a> Fun<'a> {
         if let Some(index) = self.local_index(&name) {
             index
         } else {
-            self.locals.push(ty);
-            let index = self.vars.len() as u32;
+            let index = self.add_temp_local(ty);
             self.vars.insert(name, index);
             index
         }
+    }
+
+    pub fn add_temp_local(&mut self, ty: ValType) -> u32 {
+        let index = self.locals.len() as u32;
+        self.locals.push(ty);
+        index
     }
 
     pub fn add_function(&mut self, name: String, index: u32) {

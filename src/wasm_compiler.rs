@@ -47,6 +47,85 @@ pub fn compile(program: &TypedProgram) -> Result<Vec<u8>> {
     );
     scope.insert("allocate".into(), function_index);
 
+    let function_index = app.add_function(
+        scope.clone(),
+        vec![
+            ("left".into(), ValType::I32),
+            ("right".into(), ValType::I32),
+        ],
+        Some(ValType::I32),
+        |fun| {
+            let left_string = fun.local_index("left").unwrap();
+            let right_string = fun.local_index("right").unwrap();
+            let new_string = fun.add_temp_local(ValType::I32);
+            let left_length = fun.add_temp_local(ValType::I32);
+            let right_length = fun.add_temp_local(ValType::I32);
+            let new_length = fun.add_temp_local(ValType::I32);
+            let allocate_index = fun.function_index("allocate");
+
+            // get size of left
+            fun.instr(LocalGet(left_string));
+            fun.instr(I32Load(MemArg {
+                offset: 0,
+                align: 0,
+                memory_index: 0,
+            }));
+            fun.instr(LocalTee(left_length));
+            // get size of right
+            fun.instr(LocalGet(right_string));
+            fun.instr(I32Load(MemArg {
+                offset: 0,
+                align: 0,
+                memory_index: 0,
+            }));
+            fun.instr(LocalTee(right_length));
+            // add sizes to get new len
+            fun.instr(I32Add);
+            fun.instr(LocalTee(new_length));
+            // allocate new string
+            fun.instr(I32Const(4));
+            fun.instr(I32Add);
+            fun.instr(Call(allocate_index));
+            fun.instr(LocalTee(new_string));
+            // set new len
+            fun.instr(LocalGet(new_length));
+            fun.instr(I32Store(MemArg {
+                offset: 0,
+                align: 0,
+                memory_index: 0,
+            }));
+            // copy left over into new from offset 0 and len left_len
+            fun.instr(LocalGet(new_string));
+            fun.instr(I32Const(4));
+            fun.instr(I32Add);
+            fun.instr(LocalGet(left_string));
+            fun.instr(I32Const(4));
+            fun.instr(I32Add);
+            fun.instr(LocalGet(left_length));
+            fun.instr(MemoryCopy {
+                src_mem: 0,
+                dst_mem: 0,
+            });
+            // copy right over into new from offset left_len and len right_len
+            fun.instr(LocalGet(new_string));
+            fun.instr(I32Const(4));
+            fun.instr(I32Add);
+            fun.instr(LocalGet(left_length));
+            fun.instr(I32Add);
+            fun.instr(LocalGet(right_string));
+            fun.instr(I32Const(4));
+            fun.instr(I32Add);
+            fun.instr(LocalGet(right_length));
+            fun.instr(MemoryCopy {
+                src_mem: 0,
+                dst_mem: 0,
+            });
+            // return
+            fun.instr(LocalGet(new_string));
+        },
+    );
+    scope.insert("add_string".into(), function_index);
+
     let function_index = app.add_function(scope, vec![], ty_to_val_ty(&program.ty), |fun| {
         compile_decls(fun, &program.decls);
     });
@@ -203,7 +282,15 @@ fn compile_expr(fun: &mut Fun, expr: &TypedExpr) {
             compile_expr(fun, left);
             compile_expr(fun, right);
             match kind {
-                crate::ast::BinOpKind::Add => fun.instr(I64Add),
+                crate::ast::BinOpKind::Add => match left.ty {
+                    TySimple::Num => fun.instr(I64Add),
+                    TySimple::String => {
+                        let function_index = fun.function_index("add_string");
+                        fun.instr(Call(function_index));
+                        // todo!();
+                    }
+                    _ => panic!("should not happen"),
+                },
                 crate::ast::BinOpKind::Sub => fun.instr(I64Sub),
                 crate::ast::BinOpKind::Mul => todo!(),
                 crate::ast::BinOpKind::Div => todo!(),
@@ -274,7 +361,7 @@ fn ty_to_val_ty(ty: &TySimple) -> Option<ValType> {
         TySimple::Nil => None,
         TySimple::Bool => Some(ValType::I32),
         TySimple::Num => Some(ValType::I64),
-        TySimple::String => todo!(),
+        TySimple::String => Some(ValType::I32),
     }
 }
 

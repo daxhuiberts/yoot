@@ -1,1 +1,6 @@
-print "Dax"
+dax = "Dax"
+n = 0
+while n <= 10
+  dax = dax + "!"
+  print dax
+  n = n + 1

@@ -74,7 +74,7 @@ impl TypedDecl {
     pub fn ty(&self) -> TySimple {
         match self {
             TypedDecl::Stm { ty, .. } => ty.clone(),
-            TypedDecl::Ass { ty, .. } => ty.clone(),
+            TypedDecl::Ass { .. } => TySimple::Nil,
             TypedDecl::Fun { .. } => TySimple::Nil,
         }
     }

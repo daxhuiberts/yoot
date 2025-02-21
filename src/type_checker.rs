@@ -194,7 +194,18 @@ fn check_expr(expr: &Expr, env: &mut HashMap<String, MaybeTy>) -> Result<MaybeTy
 
             let ty = match kind {
                 BinOpKind::Eq | BinOpKind::Neq => MaybeTySimple::Expected(TySimple::Bool),
-                BinOpKind::Add | BinOpKind::Sub | BinOpKind::Mul | BinOpKind::Div => {
+                BinOpKind::Add => {
+                    match_type(&left_ty, &MaybeTySimple::Expected(TySimple::Num))
+                        .or(match_type(
+                            &left_ty,
+                            &MaybeTySimple::Expected(TySimple::String),
+                        ))
+                        .map_err(|_| {
+                            format!("expected type to be Num or String: got {left_ty:?}")
+                        })?;
+                    left_ty
+                }
+                BinOpKind::Sub | BinOpKind::Mul | BinOpKind::Div => {
                     match_type(&left_ty, &MaybeTySimple::Expected(TySimple::Num))
                         .map_err(|_| format!("expected type to be Num: got {left_ty:?}"))?;
                     MaybeTySimple::Expected(TySimple::Num)
