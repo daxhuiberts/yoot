@@ -48,26 +48,26 @@ impl App {
         &mut self,
         scope: HashMap<String, u32>,
         // name: &str,
-        params: Vec<(String, ValType)>,
-        result_ty: Option<ValType>,
+        params: Vec<(String, Vec<ValType>)>,
+        results: Vec<ValType>,
         f: F,
     ) -> u32 {
-        let (param_names, param_types): (Vec<_>, Vec<_>) = params.iter().cloned().unzip();
-        let results = result_ty.into_iter().collect::<Vec<_>>();
-        let type_index = self.add_function_type(param_types.clone(), results);
+        let param_types: Vec<_> = params.iter().flat_map(|param| param.1.clone()).collect();
+        let param_types_len = param_types.len();
+        let type_index = self.add_function_type(param_types, results);
 
         // println!("ADD FUNCTION DEFINITION: {name}");
         self.functions.function(type_index);
         let function_index = self.function_count;
         self.function_count += 1;
 
-        let mut fun = Fun::new(self, scope, param_names, param_types);
+        let mut fun = Fun::new(self, scope, params);
         f(&mut fun);
 
         // println!("FUN: {fun:#?}");
 
         let mut f =
-            Function::new_with_locals_types((fun.locals[params.len()..]).into_iter().cloned());
+            Function::new_with_locals_types((fun.locals[param_types_len..]).into_iter().cloned());
         for instruction in fun.instructions {
             f.instruction(&instruction);
         }
@@ -150,8 +150,8 @@ impl App {
 #[derive(Debug)]
 pub struct Fun<'a> {
     app: &'a mut App,
-    vars: HashMap<String, u32>,
     funs: HashMap<String, u32>,
+    vars: HashMap<String, u32>,
     locals: Vec<ValType>,
     instructions: Vec<Instruction<'a>>,
 }
@@ -160,37 +160,45 @@ impl<'a> Fun<'a> {
     fn new(
         app: &'a mut App,
         funs: HashMap<String, u32>,
-        args: Vec<String>,
-        locals: Vec<ValType>,
+        params: Vec<(String, Vec<ValType>)>,
     ) -> Self {
+        let (vars, locals): (_, Vec<_>) = params
+            .into_iter()
+            .scan(0, |offset, (param_name, param_types)| {
+                let var = (param_name, *offset as u32);
+                *offset += param_types.len();
+                Some((var, param_types))
+            })
+            .unzip();
+        let locals = locals.into_iter().flat_map(|x| x).collect();
         Self {
             app,
-            vars: args
-                .into_iter()
-                .enumerate()
-                .map(|(index, name)| (name, index as u32))
-                .collect(),
             funs,
+            vars,
             locals,
             instructions: vec![],
         }
     }
 
-    pub fn local_index(&self, name: &str) -> Option<u32> {
+    pub fn var_index(&self, name: &str) -> Option<u32> {
         self.vars.get(name).copied()
     }
 
     pub fn function_index(&self, name: &str) -> u32 {
-        // println!("FUN? {name}");
         self.funs.get(name).copied().unwrap()
     }
 
-    pub fn get_or_add_local(&mut self, name: String, ty: ValType) -> u32 {
-        if let Some(index) = self.local_index(&name) {
+    pub fn get_or_add_var(&mut self, name: String, tys: Vec<ValType>) -> u32 {
+        if let Some(index) = self.var_index(&name) {
             index
         } else {
+            let mut ty_iter = tys.into_iter();
+            let ty = ty_iter.next().unwrap();
             let index = self.add_temp_local(ty);
             self.vars.insert(name, index);
+            for ty in ty_iter {
+                self.add_temp_local(ty);
+            }
             index
         }
     }

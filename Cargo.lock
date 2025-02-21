@@ -1728,7 +1728,6 @@ dependencies = [
 name = "yoot"
 version = "0.1.0"
 dependencies = [
- "byteorder",
  "chumsky",
  "clap",
  "wasm-encoder 0.225.0",

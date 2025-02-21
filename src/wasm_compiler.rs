@@ -19,15 +19,20 @@ pub fn compile(program: &TypedProgram) -> Result<Vec<u8>> {
 
     let function_index = app.add_function_import("foo", "print_i64", vec![ValType::I64], vec![]);
     scope.insert("print_i64".into(), function_index);
-    let function_index = app.add_function_import("foo", "print_string", vec![ValType::I32], vec![]);
+    let function_index = app.add_function_import(
+        "foo",
+        "print_string",
+        vec![ValType::I32, ValType::I32],
+        vec![],
+    );
     scope.insert("print_string".into(), function_index);
 
     let function_index = app.add_function(
         HashMap::new(),
-        vec![("size".into(), ValType::I32)],
-        Some(ValType::I32),
+        vec![("size".into(), vec![ValType::I32])],
+        vec![ValType::I32],
         |fun| {
-            let size = fun.local_index("size").unwrap();
+            let size = fun.var_index("size").unwrap();
             fun.instr(GlobalGet(0));
             fun.instr(GlobalGet(0));
             fun.instr(LocalGet(size));
@@ -40,57 +45,29 @@ pub fn compile(program: &TypedProgram) -> Result<Vec<u8>> {
     let function_index = app.add_function(
         scope.clone(),
         vec![
-            ("left".into(), ValType::I32),
-            ("right".into(), ValType::I32),
+            ("left".into(), vec![ValType::I32, ValType::I32]),
+            ("right".into(), vec![ValType::I32, ValType::I32]),
         ],
-        Some(ValType::I32),
+        vec![ValType::I32, ValType::I32],
         |fun| {
-            let left_string = fun.local_index("left").unwrap();
-            let right_string = fun.local_index("right").unwrap();
+            let left_string = 1;
+            let left_length = 0;
+            let right_string = 3;
+            let right_length = 2;
             let new_string = fun.add_temp_local(ValType::I32);
-            let left_length = fun.add_temp_local(ValType::I32);
-            let right_length = fun.add_temp_local(ValType::I32);
             let new_length = fun.add_temp_local(ValType::I32);
             let allocate_index = fun.function_index("allocate");
 
-            // get size of left
-            fun.instr(LocalGet(left_string));
-            fun.instr(I32Load(MemArg {
-                offset: 0,
-                align: 0,
-                memory_index: 0,
-            }));
-            fun.instr(LocalTee(left_length));
-            // get size of right
-            fun.instr(LocalGet(right_string));
-            fun.instr(I32Load(MemArg {
-                offset: 0,
-                align: 0,
-                memory_index: 0,
-            }));
-            fun.instr(LocalTee(right_length));
             // add sizes to get new len
+            fun.instr(LocalGet(left_length));
+            fun.instr(LocalGet(right_length));
             fun.instr(I32Add);
             fun.instr(LocalTee(new_length));
             // allocate new string
-            fun.instr(I32Const(4));
-            fun.instr(I32Add);
             fun.instr(Call(allocate_index));
             fun.instr(LocalTee(new_string));
-            // set new len
-            fun.instr(LocalGet(new_length));
-            fun.instr(I32Store(MemArg {
-                offset: 0,
-                align: 0,
-                memory_index: 0,
-            }));
             // copy left over into new from offset 0 and len left_len
-            fun.instr(LocalGet(new_string));
-            fun.instr(I32Const(4));
-            fun.instr(I32Add);
             fun.instr(LocalGet(left_string));
-            fun.instr(I32Const(4));
-            fun.instr(I32Add);
             fun.instr(LocalGet(left_length));
             fun.instr(MemoryCopy {
                 src_mem: 0,
@@ -98,25 +75,22 @@ pub fn compile(program: &TypedProgram) -> Result<Vec<u8>> {
             });
             // copy right over into new from offset left_len and len right_len
             fun.instr(LocalGet(new_string));
-            fun.instr(I32Const(4));
-            fun.instr(I32Add);
             fun.instr(LocalGet(left_length));
             fun.instr(I32Add);
             fun.instr(LocalGet(right_string));
-            fun.instr(I32Const(4));
-            fun.instr(I32Add);
             fun.instr(LocalGet(right_length));
             fun.instr(MemoryCopy {
                 src_mem: 0,
                 dst_mem: 0,
             });
             // return
+            fun.instr(LocalGet(new_length));
             fun.instr(LocalGet(new_string));
         },
     );
     scope.insert("add_string".into(), function_index);
 
-    let function_index = app.add_function(scope, vec![], ty_to_val_ty(&program.ty), |fun| {
+    let function_index = app.add_function(scope, vec![], ty_to_val_tys(&program.ty), |fun| {
         compile_decls(fun, &program.decls);
     });
 
@@ -147,12 +121,11 @@ fn compile_decls(fun: &mut Fun, decls: &[TypedDecl]) {
             // println!("{decl:?}");
             // println!("TY {:?}", decl.ty());
 
-            if index < len - 1
-                && matches!(decl, TyDecl::Stm { .. })
-                && !matches!(decl.ty(), TySimple::Nil)
-            {
+            if index < len - 1 && matches!(decl, TyDecl::Stm { .. }) {
                 println!("DROP?!?!?");
-                fun.instr(Drop);
+                for _ in 0..(ty_to_val_tys(&decl.ty()).len()) {
+                    fun.instr(Drop);
+                }
                 // expression = module.drop_(expression);
             }
             // Some(expression)
@@ -172,8 +145,12 @@ fn compile_decl(fun: &mut Fun, decl: &TypedDecl) -> Option<()> {
         TypedDecl::Stm { expr, ty } => Some(compile_expr(fun, expr)),
         TypedDecl::Ass { name, expr, ty } => {
             compile_decls(fun, expr);
-            let index = fun.get_or_add_local(name.clone(), ty_to_val_ty(ty).unwrap());
-            fun.instr(LocalSet(index));
+            let tys = ty_to_val_tys(ty);
+            let tys_len = tys.len();
+            let index = fun.get_or_add_var(name.clone(), tys);
+            for i in (0..tys_len).rev() {
+                fun.instr(LocalSet(index + i as u32));
+            }
             Some(())
         }
         TypedDecl::Fun {
@@ -191,11 +168,11 @@ fn compile_decl(fun: &mut Fun, decl: &TypedDecl) -> Option<()> {
             let args = args
                 .iter()
                 .zip(&ty.args)
-                .map(|(name, ty)| (name.clone(), ty_to_val_ty(ty).unwrap()))
+                .map(|(name, ty)| (name.clone(), ty_to_val_tys(ty)))
                 .collect::<Vec<_>>();
             let function_index =
                 fun.app()
-                    .add_function(scope, args, ty_to_val_ty(&ty.ret), |fun| {
+                    .add_function(scope, args, ty_to_val_tys(&ty.ret), |fun| {
                         compile_decls(fun, body);
                     });
             fun.add_function(name.clone(), function_index);
@@ -214,15 +191,18 @@ fn compile_expr(fun: &mut Fun, expr: &TypedExpr) {
             crate::ast::LitKind::Bool(bool) => fun.instr(I32Const(*bool as i32)),
             crate::ast::LitKind::Num(num) => fun.instr(I64Const(*num)),
             crate::ast::LitKind::String(val) => {
-                let data_index = fun.app().add_data(&(val.len() as u32).to_le_bytes());
-                let _ = fun.app().add_data(val.as_bytes());
-                fun.instr(I32Const(data_index as i32));
+                let index = fun.app().add_data(val.as_bytes());
+                fun.instr(I32Const(val.len() as i32));
+                fun.instr(I32Const(index as i32));
             }
         },
         crate::ast::ExprKind::Ident { name } => {
-            let index = fun.local_index(name).unwrap();
-            fun.instr(LocalGet(index));
-            // todo!()
+            let tys = ty_to_val_tys(&expr.ty);
+            let tys_len = tys.len();
+            let index = fun.var_index(name).unwrap();
+            for i in (0..tys_len) {
+                fun.instr(LocalGet(index + i as u32));
+            }
         }
         crate::ast::ExprKind::UnOp {
             kind: crate::ast::UnOpKind::Neg,
@@ -317,18 +297,20 @@ fn compile_expr(fun: &mut Fun, expr: &TypedExpr) {
     }
 }
 
-fn ty_to_val_ty(ty: &TySimple) -> Option<ValType> {
+fn ty_to_val_tys(ty: &TySimple) -> Vec<ValType> {
     match ty {
-        TySimple::Nil => None,
-        TySimple::Bool => Some(ValType::I32),
-        TySimple::Num => Some(ValType::I64),
-        TySimple::String => Some(ValType::I32),
+        TySimple::Nil => vec![],
+        TySimple::Bool => vec![ValType::I32],
+        TySimple::Num => vec![ValType::I64],
+        TySimple::String => vec![ValType::I32, ValType::I32],
     }
 }
 
 fn ty_to_block_ty(ty: &TySimple) -> BlockType {
-    match ty_to_val_ty(ty) {
-        Some(ty) => BlockType::Result(ty),
-        None => BlockType::Empty,
+    match ty {
+        TySimple::Nil => BlockType::Empty,
+        TySimple::Bool => BlockType::Result(ValType::I32),
+        TySimple::Num => BlockType::Result(ValType::I64),
+        TySimple::String => todo!(),
     }
 }

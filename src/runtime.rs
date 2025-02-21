@@ -1,6 +1,5 @@
 use std::str::from_utf8;
 
-use byteorder::{LittleEndian, ReadBytesExt};
 use wasmtime::*;
 
 pub fn run(binary: &[u8]) -> std::result::Result<(), wasmtime::Error> {
@@ -36,12 +35,10 @@ fn print_i64(input: i64) {
     println!("{input}");
 }
 
-fn print_string(mut caller: Caller<()>, input: u32) -> wasmtime::Result<()> {
+fn print_string(mut caller: Caller<()>, length: u32, offset: u32) -> wasmtime::Result<()> {
     let memory = caller.get_export("memory").unwrap().into_memory().unwrap();
     let data = memory.data(&caller);
-    let mut data_len = &data[(input as usize)..((input + 4) as usize)];
-    let len = data_len.read_u32::<LittleEndian>().unwrap();
-    let string = &data[((input + 4) as usize)..((input + 4 + len) as usize)];
+    let string = &data[(offset as usize)..((offset + length) as usize)];
     let string = from_utf8(string).unwrap();
     println!("{string}");
     Ok(())

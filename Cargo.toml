@@ -9,4 +9,3 @@ clap = { version = "4.2.4", features = ["derive"] }
 wasmtime = "29.0.1"
 wasm-encoder = "*"
 wasmprinter = "0.225.0"
-byteorder = "1.5.0"
