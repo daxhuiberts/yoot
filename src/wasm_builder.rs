@@ -11,11 +11,10 @@ pub struct App {
     types: TypeSection,
     functions: FunctionSection,
     memory: MemorySection,
-    globals: GlobalSection,
     imports: ImportSection,
     exports: ExportSection,
     codes: CodeSection,
-    datas: DataSection,
+    data: Vec<u8>,
     function_count: u32,
     function_implementations: Vec<(u32, Function)>,
 }
@@ -36,11 +35,10 @@ impl App {
             types: TypeSection::new(),
             functions: FunctionSection::new(),
             memory,
-            globals: GlobalSection::new(),
             imports: ImportSection::new(),
             exports: ExportSection::new(),
             codes: CodeSection::new(),
-            datas: DataSection::new(),
+            data: vec![],
             function_count: 0,
             function_implementations: Vec::new(),
         }
@@ -88,14 +86,10 @@ impl App {
         self.exports.export(name, kind, function_index);
     }
 
-    pub fn add_global(&mut self, ty: GlobalType, init_expr: &ConstExpr) -> u32 {
-        self.globals.global(ty, init_expr);
-        self.globals.len() - 1
-    }
-
-    pub fn add_data(&mut self, data: Vec<u8>) -> u32 {
-        self.datas.passive(data);
-        self.datas.len() - 1
+    pub fn add_data(&mut self, data: &[u8]) -> u32 {
+        let len = self.data.len() as u32;
+        self.data.extend_from_slice(data);
+        len
     }
 
     pub fn finish(mut self) -> Vec<u8> {
@@ -106,12 +100,19 @@ impl App {
         self.add_export("memory", ExportKind::Memory, 0);
         self.module.section(&self.memory);
 
-        self.module.section(&self.globals);
+        let mut globals = GlobalSection::new();
+        globals.global(
+            GlobalType {
+                val_type: ValType::I32,
+                mutable: true,
+                shared: false,
+            },
+            &ConstExpr::i32_const(self.data.len() as i32),
+        );
+        self.module.section(&globals);
         self.module.section(&self.exports);
 
-        self.module.section(&DataCountSection {
-            count: self.datas.len(),
-        });
+        self.module.section(&DataCountSection { count: 1 });
 
         self.function_implementations.sort_by_key(|x| x.0);
         self.function_implementations
@@ -122,7 +123,10 @@ impl App {
             });
 
         self.module.section(&self.codes);
-        self.module.section(&self.datas);
+
+        let mut datas = DataSection::new();
+        datas.active(0, &ConstExpr::i32_const(0), self.data);
+        self.module.section(&datas);
 
         self.module.finish()
     }

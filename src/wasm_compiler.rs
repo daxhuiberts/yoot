@@ -17,16 +17,6 @@ pub fn compile(program: &TypedProgram) -> Result<Vec<u8>> {
     let mut app = App::new();
     let mut scope = HashMap::new();
 
-    let global_index = app.add_global(
-        GlobalType {
-            val_type: ValType::I32,
-            mutable: true,
-            shared: false,
-        },
-        &ConstExpr::i32_const(0),
-    );
-    assert_eq!(global_index, 0);
-
     let function_index = app.add_function_import("foo", "print_i64", vec![ValType::I64], vec![]);
     scope.insert("print_i64".into(), function_index);
     let function_index = app.add_function_import("foo", "print_string", vec![ValType::I32], vec![]);
@@ -224,38 +214,9 @@ fn compile_expr(fun: &mut Fun, expr: &TypedExpr) {
             crate::ast::LitKind::Bool(bool) => fun.instr(I32Const(*bool as i32)),
             crate::ast::LitKind::Num(num) => fun.instr(I64Const(*num)),
             crate::ast::LitKind::String(val) => {
-                let data_index = fun.app().add_data(val.clone().into_bytes());
-                let function_index = fun.function_index("allocate");
-                let new_address = fun.get_or_add_local("local".into(), ValType::I32);
-
-                // allocate memory
-                fun.instr(I32Const((val.len() + 4) as i32));
-                fun.instr(Call(function_index));
-                fun.instr(LocalSet(new_address));
-
-                // store length
-                fun.instr(LocalGet(new_address));
-                fun.instr(I32Const(val.len() as i32));
-                fun.instr(I32Store(MemArg {
-                    offset: 0,
-                    align: 0,
-                    memory_index: 0,
-                }));
-
-                // fun.instr(LocalGet(new_address));
-                // let function_index = fun.function_index("print");
-                // fun.instr(Call(function_index));
-
-                // copy string literal from data segment
-                fun.instr(LocalGet(new_address));
-                fun.instr(I32Const(4));
-                fun.instr(I32Add);
-                fun.instr(I32Const(0));
-                fun.instr(I32Const(val.len() as i32));
-                fun.instr(MemoryInit { mem: 0, data_index });
-
-                // return string address
-                fun.instr(LocalGet(new_address));
+                let data_index = fun.app().add_data(&(val.len() as u32).to_le_bytes());
+                let _ = fun.app().add_data(val.as_bytes());
+                fun.instr(I32Const(data_index as i32));
             }
         },
         crate::ast::ExprKind::Ident { name } => {
